@@ -64,6 +64,7 @@ const $ = (s, root=document) => root.querySelector(s);
         {id:"J2",source:"مبادئ محكمة النقض",article:"حكم عقد",text:"لا يجوز فسخ العقد إلا لقيام عيب جسيم أو إخلال جوهري يثبت بالإسقاط أو المحكمة.",effective:"سابقة قضائية"}
       ],
       legalChat: [],
+      legalSessions: [],
       amendments: [
         {id:"A1",source:"الجريدة الرسمية",title:"تعديل على تنظيم المواعيد الإجرائية",summary:"تم تعديل بعض مدد تقديم المذكرات وإخطار الأطراف.",date:"2026-11-15",affected:["M-2026-001","M-2026-002"],read:false}
       ],
@@ -85,7 +86,7 @@ const $ = (s, root=document) => root.querySelector(s);
       });
     }
     const save = () => localStorage.setItem("hujja-v2", JSON.stringify(db));
-    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null, selectedMatter:"", legalTemplate:"", legalWorkflow:""};
+    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null, selectedMatter:"", legalTemplate:"", legalWorkflow:"", activeLegalSession:""};
 
     function audit(action) {
       db.audit.unshift({time:now(), user:state.user?.email || "system", action});
@@ -259,7 +260,7 @@ const $ = (s, root=document) => root.querySelector(s);
       if(!m) return;
       if(!visibleMatters().some(x=>x.id===id)) return toast("غير مصرح بعرض هذه القضية");
       const docs=db.documents.filter(d=>d.matter===id);
-      const chats=db.legalChat.filter(c=>c.matter===id);
+      const chats=db.legalSessions.filter(s=>s.matter===id);
       let modal=$("#modal");
       if(!modal){modal=document.createElement("div");modal.id="modal";modal.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.38);display:grid;place-items:center;padding:16px;z-index:40";document.body.append(modal)}
       modal.innerHTML=`<section class="card card-pad" style="width:min(820px,100%);max-height:92vh;overflow:auto">
@@ -271,7 +272,7 @@ const $ = (s, root=document) => root.querySelector(s);
         </div>
         <div class="card card-pad" style="margin-top:12px"><strong>موضوع الدعوى</strong><p>${esc(m.subject||m.title)}</p></div>
         <div class="card card-pad" style="margin-top:12px"><strong>المستندات المرتبطة</strong><p>${docs.length?docs.map(d=>esc(d.name)+" ("+d.versions+" إصدار)").join("<br>"):"لا توجد مستندات بعد"}</p><button class="btn" onclick="closeModal();openDocsForMatter('${m.id}')">فتح مستندات القضية</button></div>
-        <div class="card card-pad" style="margin-top:12px"><strong>شاتات المساعد القانوني</strong><p>${chats.length?chats.map(c=>esc(c.question)).join("<br>"):"لا توجد محادثات مرتبطة بهذه القضية"}</p>${["lawyer","admin"].includes(state.user.role)?`<button class="btn" onclick="closeModal();openLegalForMatter('${m.id}')">فتح الشات لهذه القضية</button>`:""}</div>
+        <div class="card card-pad" style="margin-top:12px"><strong>محادثات المساعد القانوني</strong><p>${chats.length?chats.map(c=>esc(c.title)).join("<br>"):"لا توجد محادثات مرتبطة بهذه القضية"}</p>${["lawyer","admin"].includes(state.user.role)?`<button class="btn" onclick="closeModal();openLegalForMatter('${m.id}')">فتح الشات لهذه القضية</button>`:""}</div>
         <div class="card card-pad" style="margin-top:12px"><strong>سجل حالة القضية</strong><p>${(m.statusHistory||[]).map(h=>esc(h.status)+" — "+new Date(h.time).toLocaleString("ar-EG")+" — "+esc(h.by)).join("<br>")||"لا يوجد سجل"}</p></div>
       </section>`;
     }
@@ -680,90 +681,125 @@ const $ = (s, root=document) => root.querySelector(s);
         return{source,score:Math.min(100,score)};
       }).filter(x=>x.score>=18).sort((a,b)=>b.score-a.score).slice(0,3);
     }
+    function ensureLegalSession(){
+      if(!db.legalSessions) db.legalSessions=[];
+      if(!state.activeLegalSession) state.activeLegalSession=db.legalSessions[0]?.id||"";
+      if(!db.legalSessions.some(s=>s.id===state.activeLegalSession)) {
+        const session={id:"CHAT-"+(db.legalSessions.length+1),title:"محادثة قانونية جديدة",matter:"",createdAt:now(),messages:[]};
+        db.legalSessions.unshift(session);
+        state.activeLegalSession=session.id;
+      }
+      return db.legalSessions.find(s=>s.id===state.activeLegalSession);
+    }
+    function newLegalSession(){
+      const session={id:"CHAT-"+(db.legalSessions.length+1),title:"محادثة قانونية جديدة",matter:"",createdAt:now(),messages:[]};
+      db.legalSessions.unshift(session);state.activeLegalSession=session.id;state.selectedMatter="";save();setPage("legal");
+    }
+    function selectLegalSession(id){
+      state.activeLegalSession=id;
+      const session=db.legalSessions.find(s=>s.id===id);
+      state.selectedMatter=session?.matter||"";
+      setPage("legal");
+    }
+    function changeSessionMatter(id){
+      const session=db.legalSessions.find(s=>s.id===state.activeLegalSession);
+      if(session){session.matter=id||"";state.selectedMatter=id||"";save();render()}
+    }
     function legalPage(){
       if(!["admin","lawyer"].includes(state.user.role)) return `<div class="empty">المساعد القانوني متاح للمحامين وإدارة المكتب فقط.</div>`;
+      const session=ensureLegalSession();
       const matters=visibleMatters();
-      const selected=state.selectedMatter && matters.some(m=>m.id===state.selectedMatter)?state.selectedMatter:(matters[0]?.id||"");
-      const chats=db.legalChat.filter(c=>!selected||c.matter===selected);
+      const selectedSessionMatter=session.matter||"";
+      const messages=session.messages||[];
       return `
-        <div class="page-head"><div><h1>المساعد القانوني</h1><p>بحث قانوني عربي محلي، مسودات قانونية ومراجعة الاستشهادات.</p></div></div>
-        <div class="card card-pad">
-          <div class="form-grid">
-            <div class="field full"><label>ربط المحادثة بالقضية</label><select id="legal-matter" onchange="state.selectedMatter=this.value;setPage('legal')">${matters.map(m=>`<option value="${m.id}" ${m.id===selected?"selected":""}>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
-          </div>
-        </div>
-        <div class="template-grid">
-          <button class="template-button ${state.legalWorkflow==="research"?"active":""}" onclick="selectLegalPrompt('research')"><strong>بحث قانوني</strong><br><small>بحث هجين واستشهادات موثّقة</small></button>
-          <button class="template-button ${state.legalWorkflow==="draft"?"active":""}" onclick="selectLegalPrompt('draft')"><strong>صياغة مستند</strong><br><small>توكيل، مذكرة، عقد أو طلب</small></button>
-          <button class="template-button ${state.legalWorkflow==="analysis"?"active":""}" onclick="selectLegalPrompt('analysis')"><strong>تحليل وقائع وسوابق</strong><br><small>استخراج الأنماط وربط الأحكام</small></button>
-          <button class="template-button ${state.legalWorkflow==="summarize"?"active":""}" onclick="selectLegalPrompt('summarize')"><strong>تلخيص المستندات</strong><br><small>ملخص عربي نقاطًا وأحداثًا</small></button>
-          <button class="template-button ${state.legalWorkflow==="foreign"?"active":""}" onclick="selectLegalPrompt('foreign')"><strong>فحص عنصر أجنبـي</strong><br><small>تطبيق قواعد الإسناد المصرية</small></button>
-          <button class="template-button ${state.legalWorkflow==="amendment"?"active":""}" onclick="selectLegalPrompt('amendment')"><strong>تحليل تعديل تشريعي</strong><br><small>الأثر على القضايا المراقبة</small></button>
-        </div>
-        <div class="chat-thread" style="margin-top:16px">
-          ${chats.map(chat=>{
-            const i=db.legalChat.indexOf(chat);
-            return `
-            <div class="chat-message">
-              <div class="question">${esc(chat.question)}</div>
-              ${chat.workflow?`<div style="margin-bottom:8px">${badge(chat.workflow==="research"?"workflow: بحث قانوني":chat.workflow==="draft"?"workflow: صياغة مستند":chat.workflow==="analysis"?"workflow: تحليل سوابق":chat.workflow==="summarize"?"workflow: تلخيص مستندات":chat.workflow==="foreign"?"workflow: عنصر أجنبـي":chat.workflow==="amendment"?"workflow: تعديل تشريعي":"workflow: محادثة حرة","pending")}</div>`:""}
-              ${chat.progress!==undefined?`<div class="progress-line"><span style="width:${chat.progress}%"></span></div><small>${esc(chat.stage)}</small>`:""}
-              ${chat.answer?`<div>${esc(chat.answer)}</div>`:""}
-              ${chat.sources?.length?`<div class="source-list">${chat.sources.map((x,n)=>`<div class="source-row"><strong>[${n+1}] ${esc(x.source.source)} — ${esc(x.source.article)}</strong><br><mark>${esc(x.source.text)}</mark><br>${badge(x.status==="verified"?"موثّق":x.status==="mismatched"?"غير مطابق":"غير موثّق",x.status==="verified"?"paid":x.status==="mismatched"?"overdue":"pending")}</div>`).join("")}</div>`:""}
-              ${chat.draft!==undefined?`<div class="field" style="margin-top:12px"><label>مسودة قابلة للتعديل</label><textarea id="legal-draft-${i}" rows="7">${esc(chat.draft)}</textarea></div>`:""}
-              ${chat.reliability!==undefined?`<div style="margin-top:12px">${badge("الموثوقية "+chat.reliability+"%",chat.reliability<40?"overdue":"paid")}${chat.foreign?` ${badge("عنصر أجنبـي","pending")}`:""}</div>`:""}
-              ${chat.answer&&state.user.role==="lawyer"?`<div class="form-actions"><button class="btn primary" onclick="sendLegalReview(${i})">إرسال للمراجعة الاعتمادية</button></div>`:""}
-            </div>`;
-          }).join("")}
-        </div>
-        <div class="legal-input" style="margin-top:16px">
-          <input id="legal-question" class="field" placeholder="مثال: ما حكم الإخلال بعقد الإيجار؟">
-          <button class="btn primary" onclick="submitLegalQuery()">إرسال</button>
+        <div class="page-head"><div><h1>المساعد القانوني</h1><p>محادثات قانونية منفصلة، يمكن ربطها بقضية أو تركها عامة.</p></div></div>
+        <div class="legal-layout">
+          <aside class="chat-sidebar">
+            <button class="btn primary" style="width:100%;margin-bottom:8px" onclick="newLegalSession()">محادثة جديدة</button>
+            ${db.legalSessions.map(s=>`<button class="chat-session ${s.id===session.id?"active":""}" onclick="selectLegalSession('${s.id}')"><strong>${esc(s.title)}</strong><small>${s.matter?esc(s.matter):"غير مرتبطة بقضية"} · ${new Date(s.createdAt).toLocaleDateString("ar-EG")}</small></button>`).join("")}
+          </aside>
+          <main class="chat-main">
+            <div>
+              <div class="chat-toolbar">
+                <select id="legal-matter" onchange="changeSessionMatter(this.value)">
+                  <option value="">بدون ربط بقضية</option>
+                  ${matters.map(m=>`<option value="${m.id}" ${m.id===selectedSessionMatter?"selected":""}>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}
+                </select>
+              </div>
+              <div class="chat-workflows">
+                <button class="workflow-chip ${state.legalWorkflow==="research"?"active":""}" onclick="selectLegalPrompt('research')">بحث قانوني</button>
+                <button class="workflow-chip ${state.legalWorkflow==="draft"?"active":""}" onclick="selectLegalPrompt('draft')">صياغة مستند</button>
+                <button class="workflow-chip ${state.legalWorkflow==="analysis"?"active":""}" onclick="selectLegalPrompt('analysis')">تحليل سوابق</button>
+                <button class="workflow-chip ${state.legalWorkflow==="summarize"?"active":""}" onclick="selectLegalPrompt('summarize')">تلخيص مستندات</button>
+                <button class="workflow-chip ${state.legalWorkflow==="foreign"?"active":""}" onclick="selectLegalPrompt('foreign')">عنصر أجنبـي</button>
+                <button class="workflow-chip ${state.legalWorkflow==="amendment"?"active":""}" onclick="selectLegalPrompt('amendment')">تعديل تشريعي</button>
+              </div>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+              ${messages.length?messages.map(m=>`
+                <div class="message-row ${m.role}">
+                  <div class="message-bubble">${esc(m.content)}${m.sources?.length?`<div class="source-list">${m.sources.map((x,n)=>`<div class="source-row"><strong>[${n+1}] ${esc(x.source.source)} — ${esc(x.source.article)}</strong><br><mark>${esc(x.source.text)}</mark><br>${badge(x.status==="verified"?"موثّق":"غير موثّق",x.status==="verified"?"paid":"pending")}</div>`).join("")}</div>`:""}${m.draft?`<div class="field" style="margin-top:12px"><label>مسودة قابلة للتعديل</label><textarea rows="7" style="width:100%">${esc(m.draft)}</textarea></div>`:""}${m.reliability!==undefined?`<div style="margin-top:10px">${badge("الموثوقية "+m.reliability+"%",m.reliability<40?"overdue":"paid")}</div>`:""}${m.role==="assistant"&&m.reliability!==undefined&&state.user.role==="lawyer"?`<div class="form-actions"><button type="button" class="btn primary" onclick="sendLegalReview('${session.id}')">إرسال للمراجعة</button></div>`:""}</div>
+                </div>`).join(""):`<div class="empty">ابدأ المحادثة بسؤال عربي، أو اختر workflow جاهزًا ثم اكتب تفاصيلك.</div>`}
+            </div>
+            <form class="chat-composer" id="chat-composer" onsubmit="submitLegalQuery(event)">
+              <textarea id="legal-question" placeholder="اكتب سؤالك القانوني..."></textarea>
+              <button type="submit" title="إرسال">↑</button>
+            </form>
+          </main>
         </div>`;
     }
-    function submitLegalQuery(){
+    function submitLegalQuery(event){
+      if(event) event.preventDefault();
       const question=$("#legal-question")?.value.trim();
       if(!question) return toast("اكتب السؤال القانوني أولًا");
+      const session=ensureLegalSession();
+      if(session.messages.length===0) session.title=question.slice(0,42)+(question.length>42?"…":"");
       const wrappedPrompt=state.legalWorkflow&&legalPrompts[state.legalWorkflow]?legalPrompts[state.legalWorkflow]+question:question;
-      if(/أجنب|دولي|foreign/i.test(question)&&!confirm("السؤال يحتوي عنصرًا أجنبيًا. هل تريد المتابعة مع تنبيه تطبيق قانون الإسناد المصري؟")) return;
-      const route=state.legalWorkflow==="draft"||/(صياغ|مسودة|توكيل)/.test(question)?"drafting":state.legalWorkflow==="analysis"||/(تحليل|سوابق|حكم)/.test(question)?"analysis":"research";
-      const matterId=state.selectedMatter || visibleMatters()[0]?.id || "";
-      const chat={matter:matterId,question,wrappedPrompt,workflow:state.legalWorkflow||"chat",route,progress:15,stage:"توجيه الطلب إلى الوكيل",sources:[],answer:"",draft:undefined,reliability:0,foreign:/أجنب|دولي|foreign/i.test(wrappedPrompt),trace:{prompt:wrappedPrompt,model:"mock-hybrid-rag-v1",chunks:[],scores:[]}};
-      db.legalChat.push(chat); setPage("legal");
-      setTimeout(()=>{chat.progress=55;chat.stage="استرجاع المصادر وفحص الاستشهادات";save();render()},350);
+      session.messages.push({role:"user",content:question,workflow:state.legalWorkflow||"chat",time:now()});
+      session.messages.push({role:"assistant",content:"جارٍ البحث وفحص الاستشهادات...",progress:35,time:now()});
+      save();render();
+
+      const route=state.legalWorkflow==="draft"?"drafting":state.legalWorkflow==="analysis"?"analysis":"research";
       setTimeout(()=>{
         const hits=legalSearch(wrappedPrompt);
-        chat.sources=hits.map(h=>({source:h.source,status:h.score>=70?"verified":"unverified"}));
-        chat.trace.chunks=hits.map(h=>h.source.id);chat.trace.scores=hits.map(h=>h.score);
-        if(!hits.length){chat.answer="الموضوع غير مفهرس في الفهرس القانوني المصري الحالي.";chat.reliability=0}
-        else if(route==="drafting"){
-          const matter=visibleMatters().find(m=>m.id===chat.matter)||visibleMatters()[0];
+        const sources=hits.map(h=>({source:h.source,status:h.score>=70?"verified":"unverified"}));
+        let answer, draft, reliability=0;
+        if(!hits.length){
+          answer="الموضوع غير مفهرس في الفهرس القانوني المصري الحالي.";
+        }else if(route==="drafting"){
+          const matter=visibleMatters().find(m=>m.id===session.matter)||visibleMatters()[0];
           const client=matter?db.clients.find(c=>c.id===matter.client):db.clients[0];
-          chat.answer="تم تجهيز مسودة قانونية قابلة للمراجعة.";
-          chat.draft=`توكيل خاص بالقضية\n\nأوكل السيد/السيدة ${client?.name||"العميل"} المحامي بإجراء جميع الأعمال المتعلقة بالقضية ${matter?.id||"المعنية"} والادعاء والدفاع أمام الجهات المختصة.\n\nتعتمد هذه المسودة على: ${hits.map((h,n)=>`[${n+1}]`).join(" ")}\nيجب مراجعتها واعتمادها قبل الاستخدام.`;
-          chat.reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.8;
+          answer="تم تجهيز مسودة قانونية قابلة للمراجعة.";
+          draft=`مسودة مرتبطة بالقضية ${matter?.id||"غير محددة"}\n\nأوكل السيد/السيدة ${client?.name||"العميل"} المحامي بإجراء جميع الأعمال المتعلقة بالقضية والادعاء والدفاع أمام الجهات المختصة.\n\nالمطلوب:\n${question}\n\nيجب مراجعة المسودة واعتمادها قبل الاستخدام.`;
+          reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.8;
         }else if(route==="analysis"){
-          chat.answer="تمت مطابقة الوقائع مع المبادئ القضائية ذات الصلة. الأنماط الظاهرة: التعويض عن الضرر المباشر، وجوب ثبوت الإخلال الجوهري، وحظر التفكيك بعد سريان العقد.";
-          chat.reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.75;
+          answer="تمت مطابقة الوقائع مع المبادئ القضائية ذات الصلة. الأنماط الظاهرة: التعويض عن الضرر المباشر، وجوب ثبوت الإخلال الجوهري، وحظر التفكيك بعد سريان العقد.";
+          reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.75;
         }else{
-          chat.answer="وفقًا للمصادر المفهرسة، يلزم مراعاة النصوص السارية وأحكام القضاء ذات الصلة، مع عدم اعتبار الإجابة بديلاً عن مراجعة المحامي.";
-          chat.reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.8;
+          answer="وفقًا للمصادر المفهرسة، يلزم مراعاة النصوص السارية وأحكام القضاء ذات الصلة، مع عدم اعتبار الإجابة بديلاً عن مراجعة المحامي.";
+          reliability=hits.reduce((n,h)=>n+h.score,0)/hits.length*.8;
         }
-        if(chat.foreign) chat.answer+=" ويحكم تحديد القانون الواجب تطبيقه قواعد الإسناد المصرية، المواد 10 إلى 28 من القانون المدني؛ والقانون الأجنبي خارج الفهرس المفهرس.";
-        chat.reliability=Math.round(chat.reliability);chat.progress=100;chat.stage="اكتمل المسار وتم تجهيز النتيجة للمراجعة";
-        db.amendments?.filter(a=>a.affected?.length).forEach(a=>{if(chat.foreign||chat.question.includes("عقد"))a.read=false});
-        audit("توليد استجابة المساعد القانوني: "+route);
+        if(/أجنب|دولي|foreign/i.test(wrappedPrompt)) answer+="\n\nعنصر أجنبـي: تحديد القانون الواجب تطبيقه يخضع لقواعد الإسناد المصرية، المواد 10 إلى 28 من القانون المدني. القانون الأجنبي خارج الفهرس المفهرس.";
+        reliability=Math.round(reliability);
+        const assistant=session.messages.findLast(m=>m.role==="assistant");
+        if(assistant) Object.assign(assistant,{content:answer,progress:100,sources,reliability,draft,trace:{prompt:wrappedPrompt,model:"mock-hybrid-rag-v1",chunks:hits.map(h=>h.source.id),scores:hits.map(h=>h.score)},time:now()});
+        audit("توليد استجابة المساعد القانوني في "+session.id+": "+route);
         save();render();
       },850);
     }
     function openLegalForMatter(id){
       state.selectedMatter=id;
+      const session=ensureLegalSession();
+      session.matter=id;
+      save();
       setPage("legal");
     }
-    function sendLegalReview(index){
-      const chat=db.legalChat[index];if(!chat) return;
-      const matter=visibleMatters().find(m=>m.id===chat.matter)||visibleMatters()[0];
-      db.reviews.push({id:"R"+(db.reviews.length+1),title:"مراجعة استجابة المساعد القانوني",matter:matter?.id||"",body:chat.draft||chat.answer,status:"pending",priority:chat.reliability<40?"عاجل":"عادي",sourceTrace:chat.trace});
+    function sendLegalReview(sessionId){
+      const session=db.legalSessions.find(s=>s.id===sessionId);if(!session) return;
+      const assistant=[...session.messages].reverse().find(m=>m.role==="assistant");
+      if(!assistant) return;
+      const matter=visibleMatters().find(m=>m.id===session.matter)||visibleMatters()[0];
+      db.reviews.push({id:"R"+(db.reviews.length+1),title:"مراجعة استجابة المساعد القانوني",matter:matter?.id||"",body:assistant.draft||assistant.content,status:"pending",priority:assistant.reliability<40?"عاجل":"عادي",sourceTrace:assistant.trace});
       audit("إرسال استجابة المساعد القانوني للمراجعة الاعتمادية");
       save(); setPage("review"); toast("تم إرسال النتيجة للمراجعة");
     }
