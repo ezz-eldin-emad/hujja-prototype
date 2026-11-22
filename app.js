@@ -85,7 +85,7 @@ const $ = (s, root=document) => root.querySelector(s);
       });
     }
     const save = () => localStorage.setItem("hujja-v2", JSON.stringify(db));
-    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null, selectedMatter:"", legalTemplate:""};
+    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null, selectedMatter:"", legalTemplate:"", legalWorkflow:""};
 
     function audit(action) {
       db.audit.unshift({time:now(), user:state.user?.email || "system", action});
@@ -200,12 +200,12 @@ const $ = (s, root=document) => root.querySelector(s);
     const roleNav = {
       admin: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["clients","العملاء"],["calendar","التقويم"],
-        ["tasks","المهام"],["time","الوقت والمصروفات"],["invoices","الفواتير"],["funds","أموال العملاء"],
+        ["tasks","المهام"],["invoices","الفواتير"],
         ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["users","المستخدمون"],["audit","سجل النشاط"]
       ],
       lawyer: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["calendar","التقويم"],["tasks","مهامي"],
-        ["time","الوقت والمصروفات"],["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["audit","سجل النشاط"]
+        ["invoices","الفواتير"],["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["audit","سجل النشاط"]
       ],
       secretary: [
         ["dashboard","نظرة عامة"],["clients","العملاء"],["cases","القضايا"],["calendar","التقويم"],
@@ -294,13 +294,32 @@ const $ = (s, root=document) => root.querySelector(s);
     }
 
     function invoices() {
+      const clientBalances=db.clients.map(c=>{const balance=db.funds.filter(f=>f.client===c.id).reduce((n,f)=>n+(f.type==="deposit"?f.amount:-f.amount),0);return{c,balance}});
       return `
-        <div class="page-head"><div><h1>الفواتير</h1><p>إنشاء ومتابعة فواتير العملاء.</p></div><div><button class="btn" onclick="openModal('invoice')">إنشاء يدوي</button> <button class="btn primary" onclick="compileInvoiceDraft()">تجميع مسودة آلية</button></div></div>
+        <div class="page-head"><div><h1>الفواتير والحسابات</h1><p>فاتورة واحدة تجمع الوقت والمصروفات والقضية والمدفوعات ورصيد العميل.</p></div><div><button class="btn" onclick="openModal('invoice')">إنشاء فاتورة يدويًا</button> <button class="btn primary" onclick="compileInvoiceDraft()">تجميع من الوقت والمصروفات</button></div></div>
+        <section class="grid" style="margin-bottom:16px">
+          <div class="card card-pad span-4"><strong>الفواتير المعلقة</strong><div class="metric-value">${money(db.invoices.filter(i=>i.status==="pending").reduce((n,i)=>n+i.amount,0))}</div></div>
+          <div class="card card-pad span-4"><strong>الفواتير المدفوعة</strong><div class="metric-value">${money(db.invoices.filter(i=>i.status==="paid").reduce((n,i)=>n+i.amount,0))}</div></div>
+          <div class="card card-pad span-4"><strong>الأرصدة المتاحة للعملاء</strong><div class="metric-value">${money(clientBalances.reduce((n,x)=>n+x.balance,0))}</div></div>
+        </section>
         ${state.invoiceDraft?`<div class="card card-pad" style="margin-bottom:16px"><h2 style="margin-top:0">مسودة الفاتورة القابلة للتعديل</h2><div class="form-grid">${state.invoiceDraft.items.map((x,i)=>`<div class="field"><label>${esc(x.description)}</label><input type="number" value="${x.amount}" onchange="state.invoiceDraft.items[${i}].amount=Number(this.value)"></div>`).join("")}</div><div class="form-actions"><button class="btn" onclick="state.invoiceDraft=null;setPage('invoices')">إلغاء المسودة</button><button class="btn primary" onclick="saveCompiledInvoice()">اعتماد وحفظ الفاتورة</button></div></div>`:""}
         <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>العميل</th><th>القضية</th><th>التاريخ</th><th>المبلغ</th><th>الحالة</th></tr></thead>
-        <tbody>${db.invoices.slice().reverse().map(i=>`<tr><td><strong>${esc(i.id)}</strong></td><td>${esc(clientName(i.client))}</td><td>${esc(i.matter)}</td><td>${dateTime(i.date)}</td><td>${money(i.amount)}</td><td>${badge(i.status==="paid"?"مدفوعة":i.status==="pending"?"معلقة":"متأخرة",i.status)}</td></tr>`).join("")}</tbody></table></div></div>`;
+        <tbody>${db.invoices.slice().reverse().map(i=>`<tr><td><strong>${esc(i.id)}</strong></td><td>${esc(clientName(i.client))}</td><td>${esc(i.matter)}</td><td>${dateTime(i.date)}</td><td>${money(i.amount)}</td><td>${badge(i.status==="paid"?"مدفوعة":i.status==="pending"?"معلقة":"متأخرة",i.status)}${i.status!="paid"?` <button class="text-btn" onclick="markInvoicePaid('${i.id}')">تسجيل دفع</button>`:""}</td></tr>`).join("")}</tbody></table></div></div>
+        <section class="grid" style="margin-top:16px">
+          <div class="card span-6"><div class="card-pad card-title"><h2>الوقت والمصروفات</h2></div><div class="table-wrap"><table><thead><tr><th>القضية</th><th>النوع</th><th>التفاصيل</th><th>القيمة</th></tr></thead><tbody>${db.timeEntries.filter(t=>visibleMatters().some(m=>m.id===t.matter)).map(t=>`<tr><td>${esc(t.matter)}</td><td>وقت عمل</td><td>${t.minutes} دقيقة — ${t.billable?"قابل للفوترة":"غير قابل للفوترة"}</td><td>${money(t.minutes/60*(t.rate||300))}</td></tr>`).join("")}${db.expenses.filter(x=>visibleMatters().some(m=>m.id===x.matter)).map(x=>`<tr><td>${esc(x.matter)}</td><td>مصروف</td><td>${esc(x.description||"مصروف قضائي")}</td><td>${money(x.amount)}</td></tr>`).join("")}</tbody></table></div></div>
+          <div class="card span-6"><div class="card-pad card-title"><h2>أرصدة وإيداعات العملاء</h2></div><div class="table-wrap"><table><thead><tr><th>العميل</th><th>إيداع</th><th>سحب</th><th>الرصيد</th></tr></thead><tbody>${clientBalances.map(x=>{const dep=db.funds.filter(f=>f.client===x.c.id&&f.type==="deposit").reduce((n,f)=>n+f.amount,0),wd=db.funds.filter(f=>f.client===x.c.id&&f.type==="withdraw").reduce((n,f)=>n+f.amount,0);return`<tr><td>${esc(x.c.name)}</td><td>${money(dep)}</td><td>${money(wd)}</td><td><strong>${money(x.balance)}</strong></td></tr>`}).join("")}</tbody></table></div></div>
+        </section>`;
     }
 
+    function markInvoicePaid(id){
+      const invoice=db.invoices.find(i=>i.id===id);
+      if(!invoice) return;
+      const method=prompt("طريقة الدفع: نقدًا، تحويل بنكي، أو بطاقة؟","تحويل بنكي");
+      if(!method) return;
+      invoice.status="paid";invoice.paidAt=now();invoice.paymentMethod=method;
+      audit("تسجيل سداد فاتورة "+id+" بواسطة "+method);
+      save();setPage("invoices");toast("تم تسجيل الدفع");
+    }
     function compileInvoiceDraft(){
       const matter=db.matters.find(m=>m.team?.includes(state.user.email)||state.user.role==="admin");
       if(!matter) return toast("لا توجد قضية متاحة");
@@ -639,6 +658,20 @@ const $ = (s, root=document) => root.querySelector(s);
       return rows.filter(r=>r.score>25).sort((a,b)=>b.score-a.score).slice(0,8);
     }
 
+    const legalPrompts={
+      research:"أجِر بحثًا قانونيًا مصريًا عن: ",
+      draft:"اكتب مسودة عربية قابلة للمراجعة باستخدام قالب متوافق مع القضية. المطلوب: ",
+      analysis:"حلّل الوقائع واستخرج السوابق والأنماط القضائية ذات الصلة. المطلوب: ",
+      summarize:"لخّص المستندات أو الوقائع التالية بالنقاط، واذكر المصادر والاستنتاجات: ",
+      foreign:"افحص العنصر الأجنبي وحدد تداعيات قواعد الإسناد المصرية على: ",
+      amendment:"حلّل التعديل التشريعي وأثره العملي على القضايا المراقبة. التعديل أو الموضوع: "
+    };
+    function selectLegalPrompt(workflow){
+      state.legalWorkflow=workflow;
+      const input=$("#legal-question");
+      if(input) input.focus();
+      setPage("legal");
+    }
     function legalSearch(query){
       const q=normalize(query);
       return db.legalCorpus.map(source=>{
@@ -660,9 +693,12 @@ const $ = (s, root=document) => root.querySelector(s);
           </div>
         </div>
         <div class="template-grid">
-          <button class="template-button ${state.legalTemplate==="t1"?"active":""}" onclick="state.legalTemplate='t1';setPage('legal')"><strong>توكيل خاص بالقضية</strong><br><small>إدخال بيانات العميل والقضية</small></button>
-          <button class="template-button ${state.legalTemplate==="t2"?"active":""}" onclick="state.legalTemplate='t2';setPage('legal')"><strong>مذكرة رد</strong><br><small>صياغة عربية قابلة للتعديل</small></button>
-          <button class="template-button ${state.legalTemplate==="t3"?"active":""}" onclick="state.legalTemplate='t3';setPage('legal')"><strong>تحليل سوابق</strong><br><small>مطابقة أنماط الأحكام</small></button>
+          <button class="template-button ${state.legalWorkflow==="research"?"active":""}" onclick="selectLegalPrompt('research')"><strong>بحث قانوني</strong><br><small>بحث هجين واستشهادات موثّقة</small></button>
+          <button class="template-button ${state.legalWorkflow==="draft"?"active":""}" onclick="selectLegalPrompt('draft')"><strong>صياغة مستند</strong><br><small>توكيل، مذكرة، عقد أو طلب</small></button>
+          <button class="template-button ${state.legalWorkflow==="analysis"?"active":""}" onclick="selectLegalPrompt('analysis')"><strong>تحليل وقائع وسوابق</strong><br><small>استخراج الأنماط وربط الأحكام</small></button>
+          <button class="template-button ${state.legalWorkflow==="summarize"?"active":""}" onclick="selectLegalPrompt('summarize')"><strong>تلخيص المستندات</strong><br><small>ملخص عربي نقاطًا وأحداثًا</small></button>
+          <button class="template-button ${state.legalWorkflow==="foreign"?"active":""}" onclick="selectLegalPrompt('foreign')"><strong>فحص عنصر أجنبـي</strong><br><small>تطبيق قواعد الإسناد المصرية</small></button>
+          <button class="template-button ${state.legalWorkflow==="amendment"?"active":""}" onclick="selectLegalPrompt('amendment')"><strong>تحليل تعديل تشريعي</strong><br><small>الأثر على القضايا المراقبة</small></button>
         </div>
         <div class="chat-thread" style="margin-top:16px">
           ${chats.map(chat=>{
@@ -670,6 +706,7 @@ const $ = (s, root=document) => root.querySelector(s);
             return `
             <div class="chat-message">
               <div class="question">${esc(chat.question)}</div>
+              ${chat.workflow?`<div style="margin-bottom:8px">${badge(chat.workflow==="research"?"workflow: بحث قانوني":chat.workflow==="draft"?"workflow: صياغة مستند":chat.workflow==="analysis"?"workflow: تحليل سوابق":chat.workflow==="summarize"?"workflow: تلخيص مستندات":chat.workflow==="foreign"?"workflow: عنصر أجنبـي":chat.workflow==="amendment"?"workflow: تعديل تشريعي":"workflow: محادثة حرة","pending")}</div>`:""}
               ${chat.progress!==undefined?`<div class="progress-line"><span style="width:${chat.progress}%"></span></div><small>${esc(chat.stage)}</small>`:""}
               ${chat.answer?`<div>${esc(chat.answer)}</div>`:""}
               ${chat.sources?.length?`<div class="source-list">${chat.sources.map((x,n)=>`<div class="source-row"><strong>[${n+1}] ${esc(x.source.source)} — ${esc(x.source.article)}</strong><br><mark>${esc(x.source.text)}</mark><br>${badge(x.status==="verified"?"موثّق":x.status==="mismatched"?"غير مطابق":"غير موثّق",x.status==="verified"?"paid":x.status==="mismatched"?"overdue":"pending")}</div>`).join("")}</div>`:""}
@@ -687,14 +724,15 @@ const $ = (s, root=document) => root.querySelector(s);
     function submitLegalQuery(){
       const question=$("#legal-question")?.value.trim();
       if(!question) return toast("اكتب السؤال القانوني أولًا");
+      const wrappedPrompt=state.legalWorkflow&&legalPrompts[state.legalWorkflow]?legalPrompts[state.legalWorkflow]+question:question;
       if(/أجنب|دولي|foreign/i.test(question)&&!confirm("السؤال يحتوي عنصرًا أجنبيًا. هل تريد المتابعة مع تنبيه تطبيق قانون الإسناد المصري؟")) return;
-      const route=/(صياغ|مسودة|توكيل)/.test(question)||state.legalTemplate==="t1"||state.legalTemplate==="t2"?"drafting":/(تحليل|سوابق|حكم)/.test(question)||state.legalTemplate==="t3"?"analysis":"research";
+      const route=state.legalWorkflow==="draft"||/(صياغ|مسودة|توكيل)/.test(question)?"drafting":state.legalWorkflow==="analysis"||/(تحليل|سوابق|حكم)/.test(question)?"analysis":"research";
       const matterId=state.selectedMatter || visibleMatters()[0]?.id || "";
-      const chat={matter:matterId,question,route,progress:15,stage:"توجيه الطلب إلى الوكيل",sources:[],answer:"",draft:undefined,reliability:0,foreign:/أجنب|دولي|foreign/i.test(question),trace:{prompt:question,model:"mock-hybrid-rag-v1",chunks:[],scores:[]}};
+      const chat={matter:matterId,question,wrappedPrompt,workflow:state.legalWorkflow||"chat",route,progress:15,stage:"توجيه الطلب إلى الوكيل",sources:[],answer:"",draft:undefined,reliability:0,foreign:/أجنب|دولي|foreign/i.test(wrappedPrompt),trace:{prompt:wrappedPrompt,model:"mock-hybrid-rag-v1",chunks:[],scores:[]}};
       db.legalChat.push(chat); setPage("legal");
       setTimeout(()=>{chat.progress=55;chat.stage="استرجاع المصادر وفحص الاستشهادات";save();render()},350);
       setTimeout(()=>{
-        const hits=legalSearch(question);
+        const hits=legalSearch(wrappedPrompt);
         chat.sources=hits.map(h=>({source:h.source,status:h.score>=70?"verified":"unverified"}));
         chat.trace.chunks=hits.map(h=>h.source.id);chat.trace.scores=hits.map(h=>h.score);
         if(!hits.length){chat.answer="الموضوع غير مفهرس في الفهرس القانوني المصري الحالي.";chat.reliability=0}
