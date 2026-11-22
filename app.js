@@ -47,7 +47,10 @@ const $ = (s, root=document) => root.querySelector(s);
         {id:"F1", client:"C1", type:"deposit", amount:15000, date:"2026-11-10"},
         {id:"F2", client:"C1", type:"withdraw", amount:12500, date:"2026-11-12"}
       ],
-      notifications: [],
+      notifications: [
+        {to:"lawyer@hujja.test",message:"معلومة عامة — تم تحديث قواعد المواعيد الإجرائية. ملخص التعديل: تعديل مدد المذكرات والإخطار بالطعن. تحليل القضايا المتأثرة: M-2026-001 — نزاع عقد إيجار، M-2026-002 — مطالبة تعويض",matterIds:["M-2026-001","M-2026-002"],time:"2026-11-22T09:00:00.000Z",read:false,amendmentId:"A1",general:true},
+        {to:"admin@hujja.test",message:"معلومة عامة — تم تحديث قواعد المواعيد الإجرائية. ملخص التعديل: تعديل مدد المذكرات والإخطار بالطعن.",matterIds:["M-2026-001","M-2026-002"],time:"2026-11-22T09:00:00.000Z",read:false,amendmentId:"A1",general:true}
+      ],
       documents: [
         {id:"D1", matter:"M-2026-001", name:"عقد الإيجار.pdf", versions:2, status:"جاهز", confidence:"مرتفع"},
         {id:"D2", matter:"M-2026-002", name:"مخالصة المستندات.docx", versions:1, status:"قيد المراجعة", confidence:"متوسط"}
@@ -66,7 +69,7 @@ const $ = (s, root=document) => root.querySelector(s);
       legalChat: [],
       legalSessions: [],
       amendments: [
-        {id:"A1",source:"الجريدة الرسمية",title:"تعديل على تنظيم المواعيد الإجرائية",summary:"تم تعديل بعض مدد تقديم المذكرات وإخطار الأطراف.",date:"2026-11-15",affected:["M-2026-001","M-2026-002"],read:false}
+        {id:"A1",source:"الجريدة الرسمية",title:"تعديل على تنظيم المواعيد الإجرائية",summary:"تم تعديل بعض مدد تقديم المذكرات وإخطار الأطراف.",date:"2026-11-15",affected:["M-2026-001","M-2026-002"],read:false,general:true}
       ],
       audit: [{time:now(), user:"system", action:"تم إنشاء نسخة تجريبية"}]
     });
@@ -204,7 +207,7 @@ const $ = (s, root=document) => root.querySelector(s);
       admin: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["clients","العملاء"],["calendar","التقويم"],
         ["tasks","المهام"],["compliance","التحليل والإجراءات"],["invoices","الفواتير"],
-        ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["law","القانون والتعديلات"],["users","المستخدمون"],["audit","سجل النشاط"]
+        ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["users","المستخدمون"],["audit","سجل النشاط"]
       ],
       lawyer: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["calendar","التقويم"],["tasks","مهامي"],
@@ -231,7 +234,7 @@ const $ = (s, root=document) => root.querySelector(s);
       return `
         <div class="page-head"><div><h1>${roleTitle}</h1><p>ملخص أعمال مكتبك اليوم.</p></div>${state.user.role==="lawyer"?"":`<button class="btn primary" onclick="setPage('invoices')">إنشاء فاتورة</button>`}</div>
         ${alerts.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--red)"><strong>تنبيهات تحتاج متابعة</strong>${alerts.map(a=>`<div style="margin-top:8px">${badge(a.title,a.severity==="high"?"overdue":"pending")} ${esc(a.text)} — <button class="text-btn" onclick="openComplianceMatter('${a.matter}')">${esc(a.matter)}</button></div>`).join("")}</div>`:""}
-        ${legalAmendments.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--gold)"><strong>تحديثات قانونية سارية</strong>${legalAmendments.map(a=>`<div style="margin-top:8px">${badge(a.article||a.title,"pending")} ${esc(a.source)} — ${esc(a.summary||a.title)} <small style="color:var(--muted)"> (${esc(a.date||"—")})</small></div>`).join("")}<div style="margin-top:10px"><button class="text-btn" onclick="markLegalNotificationsRead()">تعليم التنبيهات كمقروءة</button></div></div>`:""}
+        ${legalAmendments.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--gold)"><strong>تحديثات قانونية سارية</strong>${legalAmendments.map(a=>`<div style="margin-top:8px">${badge(a.general?"معلومة عامة":"تحديث خاص","pending")} ${badge(a.article||a.title,"pending")} ${esc(a.source)} — ${esc(a.summary||a.title)} <small style="color:var(--muted)"> (${esc(a.date||"—")})</small>${a.affected?.length?`<br><small>القضايا المتأثرة: ${a.affected.map(id=>esc(id)).join("، ")}</small>`:"<br><small>لا توجد قضايا متأثرة محددة؛ الإشعار معلومة عامة.</small>"}</div>`).join("")}<div style="margin-top:10px"><button class="text-btn" onclick="markLegalNotificationsRead()">تعليم التنبيهات كمقروءة</button></div></div>`:""}
         <section class="grid">
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>القضايا النشطة</span><span>●</span></div><div><div class="metric-value">${openCases}</div><div class="metric-note">قضية مفتوحة</div></div></div>
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>العملاء المسجلون</span><span>●</span></div><div><div class="metric-value">${db.clients.length}</div><div class="metric-note">${db.clients.length} ملف عميل</div></div></div>
@@ -591,44 +594,43 @@ const $ = (s, root=document) => root.querySelector(s);
     }
 
     function lawPage(){
-      if(state.user.role!=="admin") return `<div class="empty">إدارة قاعدة القانون والتعديلات متاحة لمدير المكتب فقط.</div>`;
       return `
-        <div class="page-head"><div><h1>قاعدة القانون والتعديلات</h1><p>تحديث نصوص المواد وإرسال تنبيه فوري للمحامين والقضايا المتأثرة.</p></div></div>
+        <div class="page-head"><div><h1>تحديثات النظام القانونية</h1><p>محاكاة إشعار صادر من قاعدة نظام حُجّة المركزية؛ مكاتب الاستخدام لا تعدل القوانين.</p></div></div>
         <div class="card card-pad">
           <div class="form-grid">
-            <div class="field full"><label>المادة القانونية</label><select id="law-source">${db.legalCorpus.map(s=>`<option value="${s.id}">${esc(s.source)} — ${esc(s.article)}</option>`).join("")}</select></div>
-            <div class="field full"><label>النص الجديد للمادة</label><textarea id="law-new-text" rows="5" placeholder="اكتب النص المعدل كما سيظهر للمحامين"></textarea></div>
-            <div class="field"><label>تاريخ النفاذ</label><input id="law-effective" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
-            <div class="field"><label>ملخص التعديل</label><input id="law-summary" placeholder="مثال: مدد الطعن والتحذير الإجرائي"></div>
-            <div class="field full"><label>القضايا المتأثرة</label><select id="law-matters" multiple>${db.matters.map(m=>`<option value="${m.id}" selected>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
-            <div class="field full"><button class="btn primary" onclick="publishLawAmendment()">نشر التعديل وإرسال الإشعارات</button></div>
+            <div class="field full"><label>نوع التعديل الوارد</label><select id="law-scenario"><option value="rent">تعديل متعلق بقانون الإيجار</option><option value="civil">تعديل متعلق بالقانون المدني والتعويضات</option><option value="procedure">تعديل إجرائي على مواعيد الطعن والمذكرات</option></select></div>
+            <div class="field full"><button class="btn primary" onclick="simulateCentralLawNotification()">محاكاة وصول إشعار التعديل</button></div>
           </div>
         </div>
-        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>النصوص الحالية</h2></div><div class="table-wrap"><table><thead><tr><th>القانون</th><th>المادة</th><th>النص</th><th>الإصدار/النفاذ</th></tr></thead><tbody>${db.legalCorpus.map(s=>`<tr><td>${esc(s.source)}</td><td>${esc(s.article)}</td><td>${esc(s.text)}</td><td>${esc(s.effective||"—")}</td></tr>`).join("")}</tbody></table></div></div>
-        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>سجل تعديلات القانون</h2></div><div class="table-wrap"><table><thead><tr><th>التاريخ</th><th>المادة</th><th>ملخص التعديل</th><th>القضايا المتأثرة</th></tr></thead><tbody>${(db.amendments||[]).map(a=>`<tr><td>${esc(a.date||"—")}</td><td>${esc(a.source+" — "+(a.article||a.title))}</td><td>${esc(a.summary)}</td><td>${(a.affected||[]).map(id=>esc(id)).join("، ")||"—"}</td></tr>`).join("")||`<tr><td colspan="4"><div class="empty">لا توجد تعديلات مسجلة</div></td></tr>`}</tbody></table></div></div>`;
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>النصوص المفهرسة من النظام المركزي</h2></div><div class="table-wrap"><table><thead><tr><th>القانون</th><th>المادة</th><th>النص</th><th>الإصدار/النفاذ</th></tr></thead><tbody>${db.legalCorpus.map(s=>`<tr><td>${esc(s.source)}</td><td>${esc(s.article)}</td><td>${esc(s.text)}</td><td>${esc(s.effective||"—")}</td></tr>`).join("")}</tbody></table></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>سجل إشعارات التحديث القانوني</h2></div><div class="table-wrap"><table><thead><tr><th>التاريخ</th><th>المادة</th><th>نوع الإشعار</th><th>ملخص التعديل</th><th>تحليل القضايا المتأثرة</th></tr></thead><tbody>${(db.amendments||[]).map(a=>`<tr><td>${esc(a.date||"—")}</td><td>${esc(a.source+" — "+(a.article||a.title))}</td><td>${badge(a.general?"معلومة عامة":"تحديث متعلق بالقضية","pending")}</td><td>${esc(a.summary)}</td><td>${(a.affected||[]).length?(a.affected||[]).map(id=>`<strong>${esc(id)}</strong> — ${esc(db.matters.find(m=>m.id===id)?.title||"قضية")}`).join("<br>"):"لا توجد قضايا متأثرة؛ المعلومة عامة لجميع المحامين"}</td></tr>`).join("")||`<tr><td colspan="5"><div class="empty">لا توجد إشعارات قانونية</div></td></tr>`}</tbody></table></div></div>`;
     }
-    function publishLawAmendment(){
-      const corpusId=$("#law-source")?.value;
-      const newText=$("#law-new-text")?.value.trim();
-      const effective=$("#law-effective")?.value;
-      const summary=$("#law-summary")?.value.trim();
-      const affected=[...($("#law-matters")?.selectedOptions||[])].map(o=>o.value);
-      if(!corpusId||!newText||!effective||!summary) return toast("أكمل المادة والنص وتاريخ النفاذ وملخص التعديل");
-      const source=db.legalCorpus.find(s=>s.id===corpusId);
-      if(!source) return;
-      source.versionHistory=source.versionHistory||[];
-      source.versionHistory.push({text:source.text,effective:source.effective,changedAt:now(),changedBy:state.user.email});
-      const previous=source.text;
-      source.text=newText;
-      source.effective=effective;
-      const amendment={id:"A"+((db.amendments?.length||0)+1),source:source.source,article:source.article,title:summary,summary,date:effective,affected,read:false,previousText:previous,newText,effective};
+    function analyzeLawAffectedMatter(scenario){
+      if(scenario==="rent") return db.matters.filter(m=>normalize((m.subject||"")+" "+(m.title||"")+" "+(m.parties||[]).join(" ")).includes("ايجار")||normalize(m.title).includes("ايجار"));
+      if(scenario==="civil") return db.matters.filter(m=>normalize((m.subject||"")+" "+(m.title||"")).includes("تعويض")||normalize(m.title).includes("تعويض"));
+      return db.matters.filter(m=>["pending","open"].includes(m.status));
+    }
+    function simulateCentralLawNotification(){
+      const scenario=$("#law-scenario")?.value||"procedure";
+      const affected=analyzeLawAffectedMatter(scenario);
+      const sample=scenario==="rent"?
+        {source:"قانون الإيجار",article:"المادة 20",summary:"تعديل مدة الإخطار وإجراءات المطالبة بالأجرة",effective:"2026-12-01"}:
+        scenario==="civil"?
+        {source:"القانون المدني المصري",article:"المادة 226",summary:"تحديث قواعد إثبات الضرر المباشر في دعاوى التعويض",effective:"2026-12-15"}:
+        {source:"قواعد المواعيد الإجرائية",article:"تنظيم الطعن والمذكرات",summary:"تعديل مدد تقديم المذكرات والإخطار بالطعن",effective:"2026-12-01"};
+      const amendment={id:"A"+((db.amendments?.length||0)+1),source:sample.source,article:sample.article,title:sample.summary,summary:sample.summary,date:sample.effective,affected:affected.map(m=>m.id),read:false,central:true,general:true};
       db.amendments=db.amendments||[];db.amendments.unshift(amendment);
       db.notifications=db.notifications||[];
-      const users=db.users.filter(u=>u.role==="lawyer"||u.role==="admin");
-      users.forEach(u=>db.notifications.push({to:u.email,message:"تعديل قانوني: "+source.source+" — "+source.article+" — "+summary,matterIds:affected,time:now(),read:false,amendmentId:amendment.id}));
-      affected.forEach(id=>{const matter=db.matters.find(m=>m.id===id);if(matter){matter.procedures=matter.procedures||[];matter.procedures.push({name:"مراجعة أثر تعديل: "+summary,status:"pending",due:effective})}});
-      audit("نشر تعديل قانوني: "+source.source+" — "+source.article);
-      save(); setPage("law"); toast("تم نشر التعديل وإرسال الإشعارات للمحامين");
+      db.users.filter(u=>u.role==="lawyer"||u.role==="admin").forEach(u=>{
+        const affectedText=affected.length?affected.map(m=>m.id+" — "+m.title).join("، "):"لا توجد قضايا مرتبطة حاليًا";
+        db.notifications.push({to:u.email,message:"معلومة عامة — تم تعديل "+sample.source+" — "+sample.article+". ملخص التعديل: "+sample.summary+". تحليل القضايا المتأثرة: "+affectedText,matterIds:affected.map(m=>m.id),time:now(),read:false,amendmentId:amendment.id,general:true});
+      });
+      affected.forEach(m=>{
+        m.procedures=m.procedures||[];
+        m.procedures.push({name:"مراجعة أثر التحديث: "+sample.summary,status:"pending",due:sample.effective});
+      });
+      audit("محاكاة إشعار مركزي لتعديل قانوني: "+sample.source+" — "+sample.article);
+      save();setPage("law");toast("تم استلام الإشعار وتحليل القضايا المتأثرة");
     }
 
     function reviewPage(){
@@ -937,7 +939,7 @@ const $ = (s, root=document) => root.querySelector(s);
             <main class="content">${({
               dashboard,cases,clients,invoices,users:usersPage,audit:auditPage,
               calendar:calendarPage,tasks:tasksPage,time:timePage,funds:fundsPage,
-              docs:docsPage,legal:legalPage,review:reviewPage,compliance:compliancePage,law:lawPage
+              docs:docsPage,legal:legalPage,review:reviewPage,compliance:compliancePage
             })[state.page]?.() || dashboard()}</main>
           </div>
         </div>`;
