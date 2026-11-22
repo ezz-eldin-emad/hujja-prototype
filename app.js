@@ -20,8 +20,8 @@ const $ = (s, root=document) => root.querySelector(s);
         {id:"C2", name:"سارة أحمد محمود", phone:"01111111111", email:"sara@example.com", nationalId:""}
       ],
       matters: [
-        {id:"M-2026-001", title:"نزاع عقد إيجار", client:"C1", status:"open", date:"2026-11-10", team:["lawyer@hujja.test","admin@hujja.test"], claimant:"محمد علي حسن", defendant:"شركة النور العقارية", court:"محكمة شمال القاهرة الابتدائية", degree:"ابتدائي", subject:"مطالبة بسداد أجرة المتأخرة والمصروفات", parties:["شركة النور العقارية"], note:"موعد جلسة قريب", statusHistory:[{status:"open",time:"2026-11-10T09:00:00.000Z",by:"admin@hujja.test"}]},
-        {id:"M-2026-002", title:"مطالبة تعويض", client:"C2", status:"pending", date:"2026-11-18", team:["lawyer@hujja.test","secretary@hujja.test","admin@hujja.test"], claimant:"سارة أحمد محمود", defendant:"محمد عبد الرحمن", court:"محكمة التجمعات الابتدائية", degree:"ابتدائي", subject:"تعويض عن ضرر ناتج عن إخلال عقدي", parties:["محمد عبد الرحمن"], note:"بانتظار المستندات", statusHistory:[{status:"open",time:"2026-11-18T09:00:00.000Z",by:"secretary@hujja.test"},{status:"pending",time:"2026-11-20T11:00:00.000Z",by:"lawyer@hujja.test"}]}
+        {id:"M-2026-001", title:"نزاع عقد إيجار", client:"C1", status:"open", date:"2026-11-10", team:["lawyer@hujja.test","admin@hujja.test"], claimant:"محمد علي حسن", defendant:"شركة النور العقارية", court:"محكمة شمال القاهرة الابتدائية", degree:"ابتدائي", subject:"مطالبة بسداد أجرة المتأخرة والمصروفات", parties:["شركة النور العقارية"], note:"موعد جلسة قريب", requiredDocuments:["عقد الإيجار","صورة الهوية","التوكيل","مذكرة الطلبات"], procedures:[{name:"تحرير الدعوى وتحديد الطلبات",status:"done",due:"2026-11-12"},{name:"تقديم المستندات والقيد",status:"done",due:"2026-11-15"},{name:"حضور الجلسة الأولى",status:"pending",due:"2026-11-23"},{name:"تقديم مذكرة الرد",status:"missing",due:"2026-11-25"}],statusHistory:[{status:"open",time:"2026-11-10T09:00:00.000Z",by:"admin@hujja.test"}]},
+        {id:"M-2026-002", title:"مطالبة تعويض", client:"C2", status:"pending", date:"2026-11-18", team:["lawyer@hujja.test","secretary@hujja.test","admin@hujja.test"], claimant:"سارة أحمد محمود", defendant:"محمد عبد الرحمن", court:"محكمة التجمعات الابتدائية", degree:"ابتدائي", subject:"تعويض عن ضرر ناتج عن إخلال عقدي", parties:["محمد عبد الرحمن"], note:"بانتظار المستندات", requiredDocuments:["صورة الهوية","التوكيل","مرفقات الإخلال","مذكرة الطلبات"], procedures:[{name:"جمع مستندات الإثبات",status:"missing",due:"2026-11-21"},{name:"تحرير الدعوى",status:"done",due:"2026-11-20"},{name:"سداد الرسوم القضائية",status:"pending",due:"2026-11-24"},{name:"متابعة ميعاد الطعن",status:"pending",due:"2026-12-10"}],statusHistory:[{status:"open",time:"2026-11-18T09:00:00.000Z",by:"secretary@hujja.test"},{status:"pending",time:"2026-11-20T11:00:00.000Z",by:"lawyer@hujja.test"}]}
       ],
       invoices: [
         {id:"INV-001", client:"C1", matter:"M-2026-001", date:"2026-11-12", due:"2026-11-30", amount:12500, status:"paid"},
@@ -196,21 +196,22 @@ const $ = (s, root=document) => root.querySelector(s);
       docs:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h5M8 12h8M8 16h8"/></svg>`,
       review:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>`,
       legal:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M5 6h14M7 6l-4 7h8zM17 6l-4 7h8zM5 21h14"/></svg>`,
+      compliance:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h14v18H5z"/><path d="M8 7h8M8 11l2 2 4-4M8 17h8"/></svg>`,
       audit:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`
     };
     const roleNav = {
       admin: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["clients","العملاء"],["calendar","التقويم"],
-        ["tasks","المهام"],["invoices","الفواتير"],
+        ["tasks","المهام"],["compliance","التحليل والإجراءات"],["invoices","الفواتير"],
         ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["users","المستخدمون"],["audit","سجل النشاط"]
       ],
       lawyer: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["calendar","التقويم"],["tasks","مهامي"],
-        ["invoices","الفواتير"],["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["audit","سجل النشاط"]
+        ["compliance","التحليل والإجراءات"],["invoices","الفواتير"],["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["audit","سجل النشاط"]
       ],
       secretary: [
         ["dashboard","نظرة عامة"],["clients","العملاء"],["cases","القضايا"],["calendar","التقويم"],
-        ["tasks","المهام"],["invoices","الفواتير"],["docs","المستندات"],["audit","سجل النشاط"]
+        ["tasks","المهام"],["compliance","التحليل والإجراءات"],["invoices","الفواتير"],["docs","المستندات"],["audit","سجل النشاط"]
       ]
     };
 
@@ -219,8 +220,10 @@ const $ = (s, root=document) => root.querySelector(s);
       const overdue=db.invoices.filter(x=>x.status==="overdue").length;
       const pending=db.invoices.filter(x=>x.status==="pending").reduce((n,x)=>n+x.amount,0);
       const roleTitle=state.user.role==="admin"?"نظرة عامة — إدارة المكتب":state.user.role==="lawyer"?"نظرة عامة — المحامي المسؤول":"نظرة عامة — السكرتارية";
+      const alerts=visibleMatters().flatMap(complianceAlerts).filter(a=>a.severity==="high").slice(0,5);
       return `
         <div class="page-head"><div><h1>${roleTitle}</h1><p>ملخص أعمال مكتبك اليوم.</p></div>${state.user.role==="lawyer"?"":`<button class="btn primary" onclick="setPage('invoices')">إنشاء فاتورة</button>`}</div>
+        ${alerts.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--red)"><strong>تنبيهات تحتاج متابعة</strong>${alerts.map(a=>`<div style="margin-top:8px">${badge(a.title,a.severity==="high"?"overdue":"pending")} ${esc(a.text)} — <button class="text-btn" onclick="openComplianceMatter('${a.matter}')">${esc(a.matter)}</button></div>`).join("")}</div>`:""}
         <section class="grid">
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>القضايا النشطة</span><span>●</span></div><div><div class="metric-value">${openCases}</div><div class="metric-note">قضية مفتوحة</div></div></div>
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>العملاء المسجلون</span><span>●</span></div><div><div class="metric-value">${db.clients.length}</div><div class="metric-note">${db.clients.length} ملف عميل</div></div></div>
@@ -274,6 +277,7 @@ const $ = (s, root=document) => root.querySelector(s);
         <div class="card card-pad" style="margin-top:12px"><strong>المستندات المرتبطة</strong><p>${docs.length?docs.map(d=>esc(d.name)+" ("+d.versions+" إصدار)").join("<br>"):"لا توجد مستندات بعد"}</p><button class="btn" onclick="closeModal();openDocsForMatter('${m.id}')">فتح مستندات القضية</button></div>
         <div class="card card-pad" style="margin-top:12px"><strong>محادثات المساعد القانوني</strong><p>${chats.length?chats.map(c=>esc(c.title)).join("<br>"):"لا توجد محادثات مرتبطة بهذه القضية"}</p>${["lawyer","admin"].includes(state.user.role)?`<button class="btn" onclick="closeModal();openLegalForMatter('${m.id}')">فتح الشات لهذه القضية</button>`:""}</div>
         <div class="card card-pad" style="margin-top:12px"><strong>سجل حالة القضية</strong><p>${(m.statusHistory||[]).map(h=>esc(h.status)+" — "+new Date(h.time).toLocaleString("ar-EG")+" — "+esc(h.by)).join("<br>")||"لا يوجد سجل"}</p></div>
+        <div class="form-actions"><button class="btn primary" onclick="closeModal();openComplianceMatter('${m.id}')">تحليل الإجراءات والتنبيهات</button></div>
       </section>`;
     }
 
@@ -492,6 +496,60 @@ const $ = (s, root=document) => root.querySelector(s);
       save(); setPage("funds"); toast(type==="deposit"?"تم تسجيل الإيداع":"تم تسجيل السحب");
     }
 
+    function openComplianceMatter(id){state.selectedMatter=id;setPage("compliance")}
+    function complianceAlerts(matter){
+      const alerts=[];
+      const docs=db.documents.filter(d=>d.matter===matter.id);
+      (matter.requiredDocuments||[]).forEach(name=>{
+        if(!docs.some(d=>normalize(d.name).includes(normalize(name)))) alerts.push({type:"missing-document",title:"مستند ناقص",text:name,matter:matter.id,severity:"high"});
+      });
+      (matter.procedures||[]).forEach(p=>{
+        if(p.status==="missing") alerts.push({type:"procedure",title:"إجراء ناقص",text:p.name,matter:matter.id,severity:"high"});
+        if(p.status==="pending"&&p.due&&p.due<new Date().toISOString().slice(0,10)) alerts.push({type:"overdue",title:"إجراء متأخر",text:p.name+" — موعده "+p.due,matter:matter.id,severity:"high"});
+      });
+      db.events.filter(e=>e.matter===matter.id).forEach(e=>{
+        if(new Date(e.start)<new Date()) alerts.push({type:"hearing",title:"موعد جلسة متجاوز",text:e.type+" في "+e.room+" — "+new Date(e.start).toLocaleString("ar-EG"),matter:matter.id,severity:"high"});
+        else {
+          const hours=(new Date(e.start)-new Date())/36e5;
+          if(hours<=72) alerts.push({type:"hearing",title:"جلسة أو موعد قريب",text:e.type+" خلال "+Math.ceil(hours)+" ساعة",matter:matter.id,severity:"medium"});
+        }
+      });
+      return alerts;
+    }
+    function compliancePage(){
+      const matters=visibleMatters();
+      const selected=state.selectedMatter&&matters.some(m=>m.id===state.selectedMatter)?state.selectedMatter:(matters[0]?.id||"");
+      const matter=matters.find(m=>m.id===selected);
+      if(!matter) return `<div class="empty">لا توجد قضية متاحة للتحليل الإجرائي.</div>`;
+      const alerts=complianceAlerts(matter);
+      const docs=db.documents.filter(d=>d.matter===matter.id);
+      const completion=Math.round(((matter.procedures||[]).filter(p=>p.status==="done").length/Math.max((matter.procedures||[]).length,1))*100);
+      const docCompletion=Math.round((docs.length/Math.max((matter.requiredDocuments||[]).length,1))*100);
+      return `
+        <div class="page-head"><div><h1>التحليل والإجراءات</h1><p>فحص اكتمال مستندات وإجراءات القضية وتنبيهات المواعيد.</p></div></div>
+        <div class="card card-pad" style="margin-bottom:16px"><div class="form-grid"><div class="field full"><label>القضية محل الفحص</label><select id="compliance-matter" onchange="state.selectedMatter=this.value;setPage('compliance')">${matters.map(m=>`<option value="${m.id}" ${m.id===selected?"selected":""}>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div></div></div>
+        <section class="grid">
+          <div class="card card-pad span-4"><strong>اكتمال الإجراءات</strong><div class="metric-value">${completion}%</div><div class="progress-line"><span style="width:${completion}%"></span></div></div>
+          <div class="card card-pad span-4"><strong>اكتمال المستندات</strong><div class="metric-value">${docCompletion}%</div><div class="progress-line"><span style="width:${docCompletion}%"></span></div></div>
+          <div class="card card-pad span-4"><strong>تنبيهات مستعجلة</strong><div class="metric-value">${alerts.filter(a=>a.severity==="high").length}</div></div>
+        </section>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>تنبيهات القضية</h2></div><div class="table-wrap"><table><thead><tr><th>الدرجة</th><th>النوع</th><th>التفاصيل</th><th>الإجراء المقترح</th></tr></thead><tbody>${alerts.map(a=>`<tr><td>${badge(a.severity==="high"?"عاجل":"قريب",a.severity==="high"?"overdue":"pending")}</td><td>${esc(a.title)}</td><td>${esc(a.text)}</td><td>${a.type==="missing-document"?`<button class="text-btn" onclick="openDocsForMatter('${a.matter}')">رفع المستند</button>`:"لا يتطلب إجراء فوري"}</td></tr>`).join("")||`<tr><td colspan="4"><div class="empty">لا توجد تنبيهات حالية</div></td></tr>`}</tbody></table></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>خريطة الإجراءات الإجرائية</h2><button class="btn" onclick="openProcedureModal('${matter.id}')">إضافة إجراء</button></div><div class="table-wrap"><table><thead><tr><th>الإجراء</th><th>الموعد</th><th>الحالة</th><th>تغيير الحالة</th></tr></thead><tbody>${(matter.procedures||[]).map((p,i)=>`<tr><td>${esc(p.name)}</td><td>${esc(p.due||"—")}</td><td>${badge(p.status==="done"?"منفذ":p.status==="missing"?"ناقص":"قيد التنفيذ",p.status==="done"?"open":p.status==="missing"?"overdue":"pending")}</td><td><select onchange="setProcedureStatus('${matter.id}',${i},this.value)"><option value="pending" ${p.status==="pending"?"selected":""}>قيد التنفيذ</option><option value="done" ${p.status==="done"?"selected":""}>منفذ</option><option value="missing" ${p.status==="missing"?"selected":""}>ناقص</option></select></td></tr>`).join("")}</tbody></table></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>فحص المستندات المطلوبة</h2><button class="btn" onclick="openDocsForMatter('${matter.id}')">فتح مستندات القضية</button></div><div class="table-wrap"><table><thead><tr><th>المستند المطلوب</th><th>الحالة</th><th>الملف الموجود</th></tr></thead><tbody>${(matter.requiredDocuments||[]).map(name=>{const d=db.documents.filter(x=>x.matter===matter.id).find(x=>normalize(x.name).includes(normalize(name)));return`<tr><td>${esc(name)}</td><td>${d?badge("موجود","open"):badge("مفقود","overdue")}</td><td>${d?esc(d.name):"—"}</td></tr>`}).join("")}</tbody></table></div></div>`;
+    }
+    function setProcedureStatus(matterId,index,status){
+      const matter=db.matters.find(m=>m.id===matterId);if(!matter?.procedures?.[index]) return;
+      matter.procedures[index].status=status;audit("تحديث إجراء إجرائي في "+matterId+": "+matter.procedures[index].name+" إلى "+status);save();setPage("compliance");toast("تم تحديث الإجراء");
+    }
+    function openProcedureModal(matterId){
+      let modal=$("#modal");if(!modal){modal=document.createElement("div");modal.id="modal";modal.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.38);display:grid;place-items:center;padding:16px;z-index:40";document.body.append(modal)}
+      modal.innerHTML=`<section class="card card-pad" style="width:min(620px,100%)"><div class="card-title"><h2>إضافة إجراء إجرائي</h2><button class="icon-btn" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field full"><label>اسم الإجراء</label><input id="procedure-name"></div><div class="field full"><label>موعد التنفيذ</label><input id="procedure-due" type="date"></div><div class="field full"><button class="btn primary" onclick="addProcedure('${matterId}')">حفظ الإجراء</button></div></div></section>`;
+    }
+    function addProcedure(matterId){
+      const name=$("#procedure-name")?.value.trim(),due=$("#procedure-due")?.value;if(!name) return toast("اكتب اسم الإجراء");
+      const matter=db.matters.find(m=>m.id===matterId);if(!matter) return;
+      matter.procedures=matter.procedures||[];matter.procedures.push({name,status:"pending",due:due||""});audit("إضافة إجراء إجرائي للقضية "+matterId+": "+name);save();closeModal();setPage("compliance");toast("تمت إضافة الإجراء");
+    }
     function docsPage(){
       const selectedMatter=state.selectedMatter && visibleMatters().some(m=>m.id===state.selectedMatter)?state.selectedMatter:"";
       const matters=visibleMatters();
@@ -829,7 +887,7 @@ const $ = (s, root=document) => root.querySelector(s);
             <main class="content">${({
               dashboard,cases,clients,invoices,users:usersPage,audit:auditPage,
               calendar:calendarPage,tasks:tasksPage,time:timePage,funds:fundsPage,
-              docs:docsPage,legal:legalPage,review:reviewPage
+              docs:docsPage,legal:legalPage,review:reviewPage,compliance:compliancePage
             })[state.page]?.() || dashboard()}</main>
           </div>
         </div>`;
