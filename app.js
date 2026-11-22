@@ -197,13 +197,14 @@ const $ = (s, root=document) => root.querySelector(s);
       review:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>`,
       legal:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M5 6h14M7 6l-4 7h8zM17 6l-4 7h8zM5 21h14"/></svg>`,
       compliance:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h14v18H5z"/><path d="M8 7h8M8 11l2 2 4-4M8 17h8"/></svg>`,
+      law:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h12v18H6z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>`,
       audit:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`
     };
     const roleNav = {
       admin: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["clients","العملاء"],["calendar","التقويم"],
         ["tasks","المهام"],["compliance","التحليل والإجراءات"],["invoices","الفواتير"],
-        ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["users","المستخدمون"],["audit","سجل النشاط"]
+        ["docs","المستندات"],["legal","المساعد القانوني"],["review","المراجعة"],["law","القانون والتعديلات"],["users","المستخدمون"],["audit","سجل النشاط"]
       ],
       lawyer: [
         ["dashboard","نظرة عامة"],["cases","القضايا"],["calendar","التقويم"],["tasks","مهامي"],
@@ -215,15 +216,22 @@ const $ = (s, root=document) => root.querySelector(s);
       ]
     };
 
+    function markLegalNotificationsRead(){
+      (db.notifications||[]).forEach(n=>{if(n.to===state.user.email)n.read=true});
+      save();setPage("dashboard");toast("تم تعليم التحديثات كمقروءة");
+    }
     function dashboard() {
       const openCases=db.matters.filter(x=>x.status==="open").length;
       const overdue=db.invoices.filter(x=>x.status==="overdue").length;
       const pending=db.invoices.filter(x=>x.status==="pending").reduce((n,x)=>n+x.amount,0);
       const roleTitle=state.user.role==="admin"?"نظرة عامة — إدارة المكتب":state.user.role==="lawyer"?"نظرة عامة — المحامي المسؤول":"نظرة عامة — السكرتارية";
       const alerts=visibleMatters().flatMap(complianceAlerts).filter(a=>a.severity==="high").slice(0,5);
+      const legalNotifications=(db.notifications||[]).filter(n=>n.to===state.user.email&&!n.read).slice(0,5);
+      const legalAmendments=(db.amendments||[]).filter(a=>state.user.role==="admin"||a.affected?.some(id=>visibleMatters().some(m=>m.id===id))).slice(0,5);
       return `
         <div class="page-head"><div><h1>${roleTitle}</h1><p>ملخص أعمال مكتبك اليوم.</p></div>${state.user.role==="lawyer"?"":`<button class="btn primary" onclick="setPage('invoices')">إنشاء فاتورة</button>`}</div>
         ${alerts.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--red)"><strong>تنبيهات تحتاج متابعة</strong>${alerts.map(a=>`<div style="margin-top:8px">${badge(a.title,a.severity==="high"?"overdue":"pending")} ${esc(a.text)} — <button class="text-btn" onclick="openComplianceMatter('${a.matter}')">${esc(a.matter)}</button></div>`).join("")}</div>`:""}
+        ${legalAmendments.length?`<div class="card card-pad" style="margin-bottom:16px;border-right:4px solid var(--gold)"><strong>تحديثات قانونية سارية</strong>${legalAmendments.map(a=>`<div style="margin-top:8px">${badge(a.article||a.title,"pending")} ${esc(a.source)} — ${esc(a.summary||a.title)} <small style="color:var(--muted)"> (${esc(a.date||"—")})</small></div>`).join("")}<div style="margin-top:10px"><button class="text-btn" onclick="markLegalNotificationsRead()">تعليم التنبيهات كمقروءة</button></div></div>`:""}
         <section class="grid">
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>القضايا النشطة</span><span>●</span></div><div><div class="metric-value">${openCases}</div><div class="metric-note">قضية مفتوحة</div></div></div>
           <div class="card card-pad span-3 metric"><div class="metric-label"><span>العملاء المسجلون</span><span>●</span></div><div><div class="metric-value">${db.clients.length}</div><div class="metric-note">${db.clients.length} ملف عميل</div></div></div>
@@ -582,6 +590,47 @@ const $ = (s, root=document) => root.querySelector(s);
       save(); setPage("docs"); toast("تم إضافة المستند");
     }
 
+    function lawPage(){
+      if(state.user.role!=="admin") return `<div class="empty">إدارة قاعدة القانون والتعديلات متاحة لمدير المكتب فقط.</div>`;
+      return `
+        <div class="page-head"><div><h1>قاعدة القانون والتعديلات</h1><p>تحديث نصوص المواد وإرسال تنبيه فوري للمحامين والقضايا المتأثرة.</p></div></div>
+        <div class="card card-pad">
+          <div class="form-grid">
+            <div class="field full"><label>المادة القانونية</label><select id="law-source">${db.legalCorpus.map(s=>`<option value="${s.id}">${esc(s.source)} — ${esc(s.article)}</option>`).join("")}</select></div>
+            <div class="field full"><label>النص الجديد للمادة</label><textarea id="law-new-text" rows="5" placeholder="اكتب النص المعدل كما سيظهر للمحامين"></textarea></div>
+            <div class="field"><label>تاريخ النفاذ</label><input id="law-effective" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+            <div class="field"><label>ملخص التعديل</label><input id="law-summary" placeholder="مثال: مدد الطعن والتحذير الإجرائي"></div>
+            <div class="field full"><label>القضايا المتأثرة</label><select id="law-matters" multiple>${db.matters.map(m=>`<option value="${m.id}" selected>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
+            <div class="field full"><button class="btn primary" onclick="publishLawAmendment()">نشر التعديل وإرسال الإشعارات</button></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>النصوص الحالية</h2></div><div class="table-wrap"><table><thead><tr><th>القانون</th><th>المادة</th><th>النص</th><th>الإصدار/النفاذ</th></tr></thead><tbody>${db.legalCorpus.map(s=>`<tr><td>${esc(s.source)}</td><td>${esc(s.article)}</td><td>${esc(s.text)}</td><td>${esc(s.effective||"—")}</td></tr>`).join("")}</tbody></table></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-pad card-title"><h2>سجل تعديلات القانون</h2></div><div class="table-wrap"><table><thead><tr><th>التاريخ</th><th>المادة</th><th>ملخص التعديل</th><th>القضايا المتأثرة</th></tr></thead><tbody>${(db.amendments||[]).map(a=>`<tr><td>${esc(a.date||"—")}</td><td>${esc(a.source+" — "+(a.article||a.title))}</td><td>${esc(a.summary)}</td><td>${(a.affected||[]).map(id=>esc(id)).join("، ")||"—"}</td></tr>`).join("")||`<tr><td colspan="4"><div class="empty">لا توجد تعديلات مسجلة</div></td></tr>`}</tbody></table></div></div>`;
+    }
+    function publishLawAmendment(){
+      const corpusId=$("#law-source")?.value;
+      const newText=$("#law-new-text")?.value.trim();
+      const effective=$("#law-effective")?.value;
+      const summary=$("#law-summary")?.value.trim();
+      const affected=[...($("#law-matters")?.selectedOptions||[])].map(o=>o.value);
+      if(!corpusId||!newText||!effective||!summary) return toast("أكمل المادة والنص وتاريخ النفاذ وملخص التعديل");
+      const source=db.legalCorpus.find(s=>s.id===corpusId);
+      if(!source) return;
+      source.versionHistory=source.versionHistory||[];
+      source.versionHistory.push({text:source.text,effective:source.effective,changedAt:now(),changedBy:state.user.email});
+      const previous=source.text;
+      source.text=newText;
+      source.effective=effective;
+      const amendment={id:"A"+((db.amendments?.length||0)+1),source:source.source,article:source.article,title:summary,summary,date:effective,affected,read:false,previousText:previous,newText,effective};
+      db.amendments=db.amendments||[];db.amendments.unshift(amendment);
+      db.notifications=db.notifications||[];
+      const users=db.users.filter(u=>u.role==="lawyer"||u.role==="admin");
+      users.forEach(u=>db.notifications.push({to:u.email,message:"تعديل قانوني: "+source.source+" — "+source.article+" — "+summary,matterIds:affected,time:now(),read:false,amendmentId:amendment.id}));
+      affected.forEach(id=>{const matter=db.matters.find(m=>m.id===id);if(matter){matter.procedures=matter.procedures||[];matter.procedures.push({name:"مراجعة أثر تعديل: "+summary,status:"pending",due:effective})}});
+      audit("نشر تعديل قانوني: "+source.source+" — "+source.article);
+      save(); setPage("law"); toast("تم نشر التعديل وإرسال الإشعارات للمحامين");
+    }
+
     function reviewPage(){
       return `
         <div class="page-head"><div><h1>المراجعة الاعتمادية</h1><p>طلبات الاعتماد التي تحتاج قرارًا من المحامي أو الإدارة.</p></div></div>
@@ -866,6 +915,7 @@ const $ = (s, root=document) => root.querySelector(s);
       if(!state.user) { loginView(); return; }
       const app=$("#app");
       const nav=roleNav[state.user.role] || roleNav.secretary;
+      const unreadLegal=(db.notifications||[]).filter(n=>n.to===state.user.email&&!n.read).length;
       app.innerHTML=`
         <div class="shell">
           <aside class="sidebar">
@@ -882,12 +932,12 @@ const $ = (s, root=document) => root.querySelector(s);
                 <input id="global-search" placeholder="بحث في القضايا والعملاء والفواتير..." autocomplete="off">
                 <div id="search-results" class="search-results"></div>
               </div>
-              <div class="top-actions"><button class="icon-btn" title="سجل النشاط" onclick="setPage('audit')">⌚</button></div>
+              <div class="top-actions"><button class="icon-btn" title="${unreadLegal?"تحديثات قانونية جديدة: "+unreadLegal:"سجل النشاط"}" onclick="setPage('dashboard')">${unreadLegal?"⚖ "+unreadLegal:"⌚"}</button></div>
             </header>
             <main class="content">${({
               dashboard,cases,clients,invoices,users:usersPage,audit:auditPage,
               calendar:calendarPage,tasks:tasksPage,time:timePage,funds:fundsPage,
-              docs:docsPage,legal:legalPage,review:reviewPage,compliance:compliancePage
+              docs:docsPage,legal:legalPage,review:reviewPage,compliance:compliancePage,law:lawPage
             })[state.page]?.() || dashboard()}</main>
           </div>
         </div>`;
