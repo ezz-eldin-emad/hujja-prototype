@@ -20,8 +20,8 @@ const $ = (s, root=document) => root.querySelector(s);
         {id:"C2", name:"سارة أحمد محمود", phone:"01111111111", email:"sara@example.com", nationalId:""}
       ],
       matters: [
-        {id:"M-2026-001", title:"نزاع عقد إيجار", client:"C1", status:"open", date:"2026-11-10", team:["lawyer@hujja.test","admin@hujja.test"], parties:["شركة النور العقارية"], note:"موعد جلسة قريب", statusHistory:[{status:"open",time:"2026-11-10T09:00:00.000Z",by:"admin@hujja.test"}]},
-        {id:"M-2026-002", title:"مطالبة تعويض", client:"C2", status:"pending", date:"2026-11-18", team:["lawyer@hujja.test","secretary@hujja.test","admin@hujja.test"], parties:["محمد عبد الرحمن"], note:"بانتظار المستندات", statusHistory:[{status:"open",time:"2026-11-18T09:00:00.000Z",by:"secretary@hujja.test"},{status:"pending",time:"2026-11-20T11:00:00.000Z",by:"lawyer@hujja.test"}]}
+        {id:"M-2026-001", title:"نزاع عقد إيجار", client:"C1", status:"open", date:"2026-11-10", team:["lawyer@hujja.test","admin@hujja.test"], claimant:"محمد علي حسن", defendant:"شركة النور العقارية", court:"محكمة شمال القاهرة الابتدائية", degree:"ابتدائي", subject:"مطالبة بسداد أجرة المتأخرة والمصروفات", parties:["شركة النور العقارية"], note:"موعد جلسة قريب", statusHistory:[{status:"open",time:"2026-11-10T09:00:00.000Z",by:"admin@hujja.test"}]},
+        {id:"M-2026-002", title:"مطالبة تعويض", client:"C2", status:"pending", date:"2026-11-18", team:["lawyer@hujja.test","secretary@hujja.test","admin@hujja.test"], claimant:"سارة أحمد محمود", defendant:"محمد عبد الرحمن", court:"محكمة التجمعات الابتدائية", degree:"ابتدائي", subject:"تعويض عن ضرر ناتج عن إخلال عقدي", parties:["محمد عبد الرحمن"], note:"بانتظار المستندات", statusHistory:[{status:"open",time:"2026-11-18T09:00:00.000Z",by:"secretary@hujja.test"},{status:"pending",time:"2026-11-20T11:00:00.000Z",by:"lawyer@hujja.test"}]}
       ],
       invoices: [
         {id:"INV-001", client:"C1", matter:"M-2026-001", date:"2026-11-12", due:"2026-11-30", amount:12500, status:"paid"},
@@ -76,12 +76,16 @@ const $ = (s, root=document) => root.querySelector(s);
     if(db) {
       const base=seed();
       Object.entries(base).forEach(([key,value])=>{ if(!db[key]) db[key]=value; });
+      base.matters.forEach(seedMatter=>{
+        const current=db.matters.find(m=>m.id===seedMatter.id);
+        if(current) db.matters[db.matters.indexOf(current)]={...seedMatter,...current};
+      });
       db.users.forEach(u=>{
         if(u.role==="assistant") u.role="secretary";
       });
     }
     const save = () => localStorage.setItem("hujja-v2", JSON.stringify(db));
-    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null};
+    const state = {user:null, pendingUser:null, otp:"", page:"dashboard", search:"", timer:null, selectedMatter:"", legalTemplate:""};
 
     function audit(action) {
       db.audit.unshift({time:now(), user:state.user?.email || "system", action});
@@ -238,8 +242,8 @@ const $ = (s, root=document) => root.querySelector(s);
       const matters=visibleMatters();
       return `
         <div class="page-head"><div><h1>القضايا</h1><p>القضايا المخصصة لفريقك فقط.</p></div>${state.user.role==="secretary"||state.user.role==="lawyer"?`<button class="btn primary" onclick="openModal('matter')">قضية جديدة</button>`:""}</div>
-        <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم القضية</th><th>الموضوع</th><th>العميل</th><th>تاريخ الفتح</th><th>الحالة</th></tr></thead>
-        <tbody>${matters.map(m=>`<tr><td><strong>${esc(m.id)}</strong></td><td>${esc(m.title)}</td><td>${esc(clientName(m.client))}</td><td>${dateTime(m.date)}</td><td>${badge(m.status==="open"?"مفتوحة":m.status==="pending"?"قيد المتابعة":"مغلقة",m.status)} ${state.user.role==="lawyer"?`<select onchange="changeMatterStatus('${m.id}',this.value)" style="margin-right:6px"><option value="open" ${m.status==="open"?"selected":""}>مفتوحة</option><option value="pending" ${m.status==="pending"?"selected":""}>قيد المتابعة</option><option value="closed" ${m.status==="closed"?"selected":""}>مغلقة</option></select>`:""}</td></tr>`).join("")||`<tr><td colspan="5"><div class="empty">لا توجد قضايا مخصصة لك</div></td></tr>`}</tbody></table></div></div>`;
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم القضية</th><th>موضوع القضية</th><th>الموكل</th><th>الخصم</th><th>المحكمة والدرجة</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>${matters.map(m=>`<tr><td><strong>${esc(m.id)}</strong></td><td>${esc(m.subject||m.title)}</td><td>${esc(m.claimant||clientName(m.client))}</td><td>${esc(m.defendant||"—")}</td><td>${esc(m.court||"—")}<br><small>${esc(m.degree||"—")}</small></td><td>${badge(m.status==="open"?"مفتوحة":m.status==="pending"?"قيد المتابعة":"مغلقة",m.status)} ${state.user.role==="lawyer"?`<select onchange="changeMatterStatus('${m.id}',this.value)" style="margin-right:6px"><option value="open" ${m.status==="open"?"selected":""}>مفتوحة</option><option value="pending" ${m.status==="pending"?"selected":""}>قيد المتابعة</option><option value="closed" ${m.status==="closed"?"selected":""}>مغلقة</option></select>`:""}</td><td><button class="btn" onclick="openMatterDetail('${m.id}')">تفاصيل القضية</button></td></tr>`).join("")||`<tr><td colspan="7"><div class="empty">لا توجد قضايا مخصصة لك</div></td></tr>`}</tbody></table></div></div>`;
     }
     function changeMatterStatus(id,status){
       const matter=db.matters.find(m=>m.id===id);
@@ -249,6 +253,27 @@ const $ = (s, root=document) => root.querySelector(s);
       matter.statusHistory.push({status,time:now(),by:state.user.email});
       audit("تغيير حالة القضية "+id+" إلى "+(status==="open"?"مفتوحة":status==="pending"?"قيد المتابعة":"مغلقة"));
       save(); setPage("cases"); toast("تم تحديث حالة القضية");
+    }
+    function openMatterDetail(id){
+      const m=db.matters.find(x=>x.id===id);
+      if(!m) return;
+      if(!visibleMatters().some(x=>x.id===id)) return toast("غير مصرح بعرض هذه القضية");
+      const docs=db.documents.filter(d=>d.matter===id);
+      const chats=db.legalChat.filter(c=>c.matter===id);
+      let modal=$("#modal");
+      if(!modal){modal=document.createElement("div");modal.id="modal";modal.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.38);display:grid;place-items:center;padding:16px;z-index:40";document.body.append(modal)}
+      modal.innerHTML=`<section class="card card-pad" style="width:min(820px,100%);max-height:92vh;overflow:auto">
+        <div class="card-title"><h2>${esc(m.title)} — ${esc(m.id)}</h2><button class="icon-btn" onclick="closeModal()">×</button></div>
+        <div class="role-summary">
+          <div class="card card-pad"><strong>الموكل</strong><p>${esc(m.claimant||clientName(m.client))}</p></div>
+          <div class="card card-pad"><strong>الخصم</strong><p>${esc(m.defendant||m.parties?.join("، ")||"—")}</p></div>
+          <div class="card card-pad"><strong>المحكمة والدرجة</strong><p>${esc(m.court||"—")}<br>${esc(m.degree||"—")}</p></div>
+        </div>
+        <div class="card card-pad" style="margin-top:12px"><strong>موضوع الدعوى</strong><p>${esc(m.subject||m.title)}</p></div>
+        <div class="card card-pad" style="margin-top:12px"><strong>المستندات المرتبطة</strong><p>${docs.length?docs.map(d=>esc(d.name)+" ("+d.versions+" إصدار)").join("<br>"):"لا توجد مستندات بعد"}</p><button class="btn" onclick="closeModal();openDocsForMatter('${m.id}')">فتح مستندات القضية</button></div>
+        <div class="card card-pad" style="margin-top:12px"><strong>شاتات المساعد القانوني</strong><p>${chats.length?chats.map(c=>esc(c.question)).join("<br>"):"لا توجد محادثات مرتبطة بهذه القضية"}</p>${["lawyer","admin"].includes(state.user.role)?`<button class="btn" onclick="closeModal();openLegalForMatter('${m.id}')">فتح الشات لهذه القضية</button>`:""}</div>
+        <div class="card card-pad" style="margin-top:12px"><strong>سجل حالة القضية</strong><p>${(m.statusHistory||[]).map(h=>esc(h.status)+" — "+new Date(h.time).toLocaleString("ar-EG")+" — "+esc(h.by)).join("<br>")||"لا يوجد سجل"}</p></div>
+      </section>`;
     }
 
     function clients() {
@@ -448,18 +473,23 @@ const $ = (s, root=document) => root.querySelector(s);
     }
 
     function docsPage(){
+      const selectedMatter=state.selectedMatter && visibleMatters().some(m=>m.id===state.selectedMatter)?state.selectedMatter:"";
+      const matters=visibleMatters();
+      const documents=db.documents.filter(d=>!selectedMatter||d.matter===selectedMatter);
       return `
-        <div class="page-head"><div><h1>المستندات</h1><p>أرشيف ملفات القضايا وإصداراتها وحالة المراجعة.</p></div></div>
+        <div class="page-head"><div><h1>مستندات القضايا</h1><p>أرشيف ملفات القضايا وإصداراتها وحالة المراجعة، مع وصول مباشر لكل قضية.</p></div></div>
         <div class="card card-pad"><div class="form-grid">
-          <div class="field"><label>القضية</label><select id="doc-matter">${db.matters.map(m=>`<option value="${m.id}">${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
+          <div class="field"><label>القضية</label><select id="doc-matter" onchange="filterDocsForMatter(this.value)">${matters.map(m=>`<option value="${m.id}" ${m.id===selectedMatter?"selected":""}>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
           <div class="field"><label>اسم المستند</label><input id="doc-name" placeholder="مثال: مذكرة الرد.pdf"></div>
           <div class="field"><label>رفع ملف محاكاة OCR</label><input id="doc-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx"></div>
           <div class="field"><label>تشغيل OCR عربي؟</label><select id="doc-ocr"><option value="true">نعم</option><option value="false">لا</option></select></div>
           <div class="field full"><button class="btn primary" onclick="addDocument()">إضافة للمستندات</button></div>
         </div></div>
         <div class="card"><div class="table-wrap"><table><thead><tr><th>المستند</th><th>القضية</th><th>الإصدارات</th><th>الحالة</th><th>مستوى الثقة</th></tr></thead>
-        <tbody>${db.documents.map(d=>`<tr><td><strong>${esc(d.name)}</strong></td><td>${esc(d.matter)}</td><td>${d.versions}</td><td>${esc(d.status)}</td><td>${d.confidence==="low"?badge("ثقة منخفضة","overdue"):esc(d.confidence)}</td></tr>`).join("")}</tbody></table></div></div>`;
+        <tbody>${documents.map(d=>`<tr><td><strong>${esc(d.name)}</strong></td><td>${esc(d.matter)}</td><td>${d.versions}</td><td>${esc(d.status)}</td><td>${d.confidence==="low"?badge("ثقة منخفضة","overdue"):esc(d.confidence)}</td></tr>`).join("")||`<tr><td colspan="5"><div class="empty">لا توجد مستندات لهذه القضية</div></td></tr>`}</tbody></table></div></div>`;
     }
+    function filterDocsForMatter(id){ state.selectedMatter=id; setPage("docs"); }
+    function openDocsForMatter(id){ state.selectedMatter=id; setPage("docs"); }
     function addDocument(){
       const file=$("#doc-file")?.files?.[0];
       const name=(file?.name||$("#doc-name")?.value||"").trim();
@@ -498,6 +528,11 @@ const $ = (s, root=document) => root.querySelector(s);
       if(type==="matter") return `<form id="modal-form"><div class="form-grid">
         <div class="field full"><label>عنوان القضية</label><input name="title" required></div>
         <div class="field full"><label>العميل</label><select name="client" required>${db.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>الموكل</label><input name="claimant" placeholder="اسم الموكل"></div>
+        <div class="field"><label>الخصم / الطرف الآخر</label><input name="party" placeholder="اسم الخصم"></div>
+        <div class="field full"><label>موضوع الدعوى</label><textarea name="subject" rows="3" placeholder="موضوع القضية بالتفصيل"></textarea></div>
+        <div class="field"><label>المحكمة</label><input name="court" placeholder="مثال: محكمة شمال القاهرة الابتدائية"></div>
+        <div class="field"><label>الدرجة</label><select name="degree"><option>ابتدائي</option><option>استئناف</option><option>نقض</option><option>محكمة الأسرة</option><option>تعسيري</option></select></div>
         <div class="field"><label>الحالة</label><select name="status"><option value="open">مفتوحة</option><option value="pending">قيد المتابعة</option><option value="closed">مغلقة</option></select></div>
         <div class="field"><label>تاريخ الفتح</label><input name="date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
         <div class="field full"><label>طرف آخر</label><input name="party" placeholder="اسم الطرف أو جهة التدخل"></div>
@@ -554,7 +589,7 @@ const $ = (s, root=document) => root.querySelector(s);
         }
         const team=form.getAll("team");
         if(!team.includes(state.user.email)) team.push(state.user.email);
-        db.matters.push({id,title:data.title,client:data.client,status:data.status,date:data.date,team,parties:party?[party]:[],note:"",statusHistory:[{status:data.status,time:now(),by:state.user.email}]});
+        db.matters.push({id,title:data.title,client:data.client,status:data.status,date:data.date,team,claimant:data.claimant||clientName(data.client),defendant:party||"—",court:data.court||"—",degree:data.degree||"ابتدائي",subject:data.subject||data.title,parties:party?[party]:[],note:"",statusHistory:[{status:data.status,time:now(),by:state.user.email}]});
         audit("إضافة قضية: "+id);
         closeModal(); setPage("cases"); toast("تم إنشاء القضية");
       } else if(type==="invoice") {
@@ -614,15 +649,25 @@ const $ = (s, root=document) => root.querySelector(s);
     }
     function legalPage(){
       if(!["admin","lawyer"].includes(state.user.role)) return `<div class="empty">المساعد القانوني متاح للمحامين وإدارة المكتب فقط.</div>`;
+      const matters=visibleMatters();
+      const selected=state.selectedMatter && matters.some(m=>m.id===state.selectedMatter)?state.selectedMatter:(matters[0]?.id||"");
+      const chats=db.legalChat.filter(c=>!selected||c.matter===selected);
       return `
         <div class="page-head"><div><h1>المساعد القانوني</h1><p>بحث قانوني عربي محلي، مسودات قانونية ومراجعة الاستشهادات.</p></div></div>
+        <div class="card card-pad">
+          <div class="form-grid">
+            <div class="field full"><label>ربط المحادثة بالقضية</label><select id="legal-matter" onchange="state.selectedMatter=this.value;setPage('legal')">${matters.map(m=>`<option value="${m.id}" ${m.id===selected?"selected":""}>${esc(m.id)} — ${esc(m.title)}</option>`).join("")}</select></div>
+          </div>
+        </div>
         <div class="template-grid">
           <button class="template-button ${state.legalTemplate==="t1"?"active":""}" onclick="state.legalTemplate='t1';setPage('legal')"><strong>توكيل خاص بالقضية</strong><br><small>إدخال بيانات العميل والقضية</small></button>
           <button class="template-button ${state.legalTemplate==="t2"?"active":""}" onclick="state.legalTemplate='t2';setPage('legal')"><strong>مذكرة رد</strong><br><small>صياغة عربية قابلة للتعديل</small></button>
           <button class="template-button ${state.legalTemplate==="t3"?"active":""}" onclick="state.legalTemplate='t3';setPage('legal')"><strong>تحليل سوابق</strong><br><small>مطابقة أنماط الأحكام</small></button>
         </div>
         <div class="chat-thread" style="margin-top:16px">
-          ${db.legalChat.map((chat,i)=>`
+          ${chats.map(chat=>{
+            const i=db.legalChat.indexOf(chat);
+            return `
             <div class="chat-message">
               <div class="question">${esc(chat.question)}</div>
               ${chat.progress!==undefined?`<div class="progress-line"><span style="width:${chat.progress}%"></span></div><small>${esc(chat.stage)}</small>`:""}
@@ -631,7 +676,8 @@ const $ = (s, root=document) => root.querySelector(s);
               ${chat.draft!==undefined?`<div class="field" style="margin-top:12px"><label>مسودة قابلة للتعديل</label><textarea id="legal-draft-${i}" rows="7">${esc(chat.draft)}</textarea></div>`:""}
               ${chat.reliability!==undefined?`<div style="margin-top:12px">${badge("الموثوقية "+chat.reliability+"%",chat.reliability<40?"overdue":"paid")}${chat.foreign?` ${badge("عنصر أجنبـي","pending")}`:""}</div>`:""}
               ${chat.answer&&state.user.role==="lawyer"?`<div class="form-actions"><button class="btn primary" onclick="sendLegalReview(${i})">إرسال للمراجعة الاعتمادية</button></div>`:""}
-            </div>`).join("")}
+            </div>`;
+          }).join("")}
         </div>
         <div class="legal-input" style="margin-top:16px">
           <input id="legal-question" class="field" placeholder="مثال: ما حكم الإخلال بعقد الإيجار؟">
@@ -643,7 +689,8 @@ const $ = (s, root=document) => root.querySelector(s);
       if(!question) return toast("اكتب السؤال القانوني أولًا");
       if(/أجنب|دولي|foreign/i.test(question)&&!confirm("السؤال يحتوي عنصرًا أجنبيًا. هل تريد المتابعة مع تنبيه تطبيق قانون الإسناد المصري؟")) return;
       const route=/(صياغ|مسودة|توكيل)/.test(question)||state.legalTemplate==="t1"||state.legalTemplate==="t2"?"drafting":/(تحليل|سوابق|حكم)/.test(question)||state.legalTemplate==="t3"?"analysis":"research";
-      const chat={question,route,progress:15,stage:"توجيه الطلب إلى الوكيل",sources:[],answer:"",draft:undefined,reliability:0,foreign:/أجنب|دولي|foreign/i.test(question),trace:{prompt:question,model:"mock-hybrid-rag-v1",chunks:[],scores:[]}};
+      const matterId=state.selectedMatter || visibleMatters()[0]?.id || "";
+      const chat={matter:matterId,question,route,progress:15,stage:"توجيه الطلب إلى الوكيل",sources:[],answer:"",draft:undefined,reliability:0,foreign:/أجنب|دولي|foreign/i.test(question),trace:{prompt:question,model:"mock-hybrid-rag-v1",chunks:[],scores:[]}};
       db.legalChat.push(chat); setPage("legal");
       setTimeout(()=>{chat.progress=55;chat.stage="استرجاع المصادر وفحص الاستشهادات";save();render()},350);
       setTimeout(()=>{
@@ -652,7 +699,7 @@ const $ = (s, root=document) => root.querySelector(s);
         chat.trace.chunks=hits.map(h=>h.source.id);chat.trace.scores=hits.map(h=>h.score);
         if(!hits.length){chat.answer="الموضوع غير مفهرس في الفهرس القانوني المصري الحالي.";chat.reliability=0}
         else if(route==="drafting"){
-          const matter=visibleMatters()[0];
+          const matter=visibleMatters().find(m=>m.id===chat.matter)||visibleMatters()[0];
           const client=matter?db.clients.find(c=>c.id===matter.client):db.clients[0];
           chat.answer="تم تجهيز مسودة قانونية قابلة للمراجعة.";
           chat.draft=`توكيل خاص بالقضية\n\nأوكل السيد/السيدة ${client?.name||"العميل"} المحامي بإجراء جميع الأعمال المتعلقة بالقضية ${matter?.id||"المعنية"} والادعاء والدفاع أمام الجهات المختصة.\n\nتعتمد هذه المسودة على: ${hits.map((h,n)=>`[${n+1}]`).join(" ")}\nيجب مراجعتها واعتمادها قبل الاستخدام.`;
@@ -671,9 +718,13 @@ const $ = (s, root=document) => root.querySelector(s);
         save();render();
       },850);
     }
+    function openLegalForMatter(id){
+      state.selectedMatter=id;
+      setPage("legal");
+    }
     function sendLegalReview(index){
       const chat=db.legalChat[index];if(!chat) return;
-      const matter=visibleMatters()[0];
+      const matter=visibleMatters().find(m=>m.id===chat.matter)||visibleMatters()[0];
       db.reviews.push({id:"R"+(db.reviews.length+1),title:"مراجعة استجابة المساعد القانوني",matter:matter?.id||"",body:chat.draft||chat.answer,status:"pending",priority:chat.reliability<40?"عاجل":"عادي",sourceTrace:chat.trace});
       audit("إرسال استجابة المساعد القانوني للمراجعة الاعتمادية");
       save(); setPage("review"); toast("تم إرسال النتيجة للمراجعة");
