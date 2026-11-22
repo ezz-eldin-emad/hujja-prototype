@@ -173,6 +173,16 @@
     .login-card .field { margin-top: 14px; }
     .login-card .btn { width: 100%; margin-top: 20px; }
     .login-hint { margin-top: 14px; color: var(--muted); font-size: 12px; text-align: center; }
+    .role-shortcuts { margin-top: 18px; display: grid; gap: 8px; }
+    .role-shortcuts-title { color: var(--muted); font-size: 12px; text-align: center; }
+    .role-shortcut {
+      width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 8px;
+      background: #fff; color: var(--ink); display: flex; align-items: center;
+      justify-content: space-between; gap: 10px; padding: 8px 12px; text-align: right;
+    }
+    .role-shortcut:hover { border-color: #aab3c2; background: #fafbfc; }
+    .role-shortcut strong { font-size: 13px; }
+    .role-shortcut small { direction: ltr; color: var(--muted); }
     .toast {
       position: fixed; left: 24px; bottom: 24px; z-index: 50;
       background: var(--ink); color: #fff; border-right: 4px solid var(--gold);
@@ -331,10 +341,16 @@
               <div><h1>حُجّة</h1><p>نظام إدارة مكتب المحاماة</p></div>
             </div>
             <form id="login-form">
-              <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" value="lawyer@hujja.test" autocomplete="username"></div>
+              <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" value="" placeholder="اختر أحد الأدوار بالأسفل" autocomplete="username"></div>
               <div class="field"><label for="password">كلمة المرور</label><input id="password" type="password" value="1234" autocomplete="current-password"></div>
               <button class="btn primary" type="submit">تسجيل الدخول</button>
             </form>
+            <div class="role-shortcuts">
+              <div class="role-shortcuts-title">تجربة سريعة حسب الدور</div>
+              <button type="button" class="role-shortcut" onclick="selectRole('admin@hujja.test')"><strong>مدير المكتب</strong><small>admin@hujja.test</small></button>
+              <button type="button" class="role-shortcut" onclick="selectRole('lawyer@hujja.test')"><strong>المحامي</strong><small>lawyer@hujja.test</small></button>
+              <button type="button" class="role-shortcut" onclick="selectRole('secretary@hujja.test')"><strong>السكرتارية</strong><small>secretary@hujja.test</small></button>
+            </div>
             <div class="login-hint">يتم إنشاء الحسابات وتعديل صلاحياتها من إدارة النظام فقط.</div>
           </section>
         </main>`;
@@ -350,6 +366,14 @@
       });
     }
     function cancelOtp(){ state.pendingUser=null; state.otp=""; render(); }
+    function selectRole(email){
+      const input=$("#email");
+      if(input) {
+        input.value=email;
+        input.focus();
+        toast("تم اختيار الدور — اضغط تسجيل الدخول");
+      }
+    }
 
     const icons = {
       dashboard:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
